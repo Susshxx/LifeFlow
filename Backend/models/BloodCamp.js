@@ -78,6 +78,14 @@ const bloodCampSchema = new mongoose.Schema({
       type: Date,
       default: Date.now,
     },
+    donationCompleted: {
+      type: Boolean,
+      default: false,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
   }],
 }, {
   timestamps: true,

@@ -561,4 +561,39 @@ router.get("/users/map", authMiddleware, async (req, res) => {
   }
 });
 
+// ── GET /api/auth/users/:userId/last-donation ─────────────────────────────────
+// Returns the last blood donation date for a specific user
+router.get("/users/:userId/last-donation", authMiddleware, async (req, res) => {
+  try {
+    const BloodCamp = require("../models/BloodCamp");
+    
+    // Find the most recent blood camp registration for this user
+    const lastDonation = await BloodCamp.findOne(
+      {
+        "registeredDonors.userId": req.params.userId,
+        status: { $in: ["approved", "completed"] }
+      },
+      { "registeredDonors.$": 1, startTime: 1 }
+    )
+    .sort({ startTime: -1 })
+    .lean();
+
+    if (!lastDonation || !lastDonation.registeredDonors || !lastDonation.registeredDonors[0]) {
+      return res.json({ lastDonation: null });
+    }
+
+    const donorInfo = lastDonation.registeredDonors[0];
+    const donationDate = lastDonation.startTime;
+    
+    return res.json({
+      lastDonation: donationDate,
+      lastDonationMonth: donorInfo.lastDonationMonth,
+      lastDonationYear: donorInfo.lastDonationYear
+    });
+  } catch (err) {
+    console.error("Failed to fetch last donation:", err);
+    return res.status(500).json({ error: "Failed to fetch last donation." });
+  }
+});
+
 module.exports = router;

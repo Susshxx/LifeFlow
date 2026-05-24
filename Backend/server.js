@@ -103,6 +103,7 @@ connectDB();
 // ── Routes ────────────────────────────────────────────────────────────────────
 const authRoutes = require("./routes/authRoutes");
 const donationRoutes = require("./routes/donationRoutes");
+const donationHistoryRoutes = require("./routes/donationHistoryRoutes");
 const ocrRoutes = require("./routes/ocrRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const connectionRoutes = require("./routes/connectionRoutes");
@@ -113,9 +114,11 @@ const reviewRoutes = require("./routes/reviewRoutes");
 const userRoutes = require("./routes/userRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const bloodInventoryRoutes = require("./routes/bloodInventoryRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/donation", donationRoutes);
+app.use("/api/donation-history", donationHistoryRoutes);
 app.use("/api/ocr", ocrRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/connections", connectionRoutes);
@@ -126,6 +129,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/blood-inventory", bloodInventoryRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

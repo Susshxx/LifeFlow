@@ -4,6 +4,7 @@ import {
   HeartPulseIcon, UserIcon, CameraIcon, CheckCircleIcon,
   AlertCircleIcon, PhoneIcon, MapPinIcon,
   SaveIcon, Loader2Icon, StarIcon, CheckIcon, XIcon, MenuIcon,
+  SunIcon, MoonIcon, MonitorIcon, PaletteIcon,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -210,11 +211,48 @@ export function SettingsPage() {
   const [formData, setFormData] = useState({ phone: '', province: '', district: '', municipality: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Theme state
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
+
   // Temporary location state — pendingTempLoc holds a newly picked loc not yet saved
   const [tempLocation, setTempLocation] = useState<TempLocation | null>(null);
   const [pendingTempLoc, setPendingTempLoc] = useState<TempLocation | null>(null);
 
   const availableDistricts = formData.province ? (districtsByProvince[formData.province] || []) : [];
+
+  // ── Theme functions ────────────────────────────────────────────────────────
+  const applyTheme = (selectedTheme: 'light' | 'dark' | 'system') => {
+    let effectiveTheme = selectedTheme;
+    
+    if (selectedTheme === 'system') {
+      // Detect system preference
+      effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    
+    if (effectiveTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+    setTheme(newTheme);
+    localStorage.setItem('lf_theme', newTheme);
+    applyTheme(newTheme);
+    setSaveSuccess(false);
+  };
+
+  // Listen for system theme changes when "system" is selected
+  useEffect(() => {
+    if (theme !== 'system') return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => applyTheme('system');
+    
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
 
   // ── Load user ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -226,26 +264,69 @@ export function SettingsPage() {
     setTempLocation(user.tempLocation || null);
     setFormData({ phone: user.phone || '', province: user.province || '', district: user.district || '', municipality: user.municipality || '' });
 
+    // Load theme preference
+    const savedTheme = localStorage.getItem('lf_theme') as 'light' | 'dark' | 'system' || 'light';
+    setTheme(savedTheme);
+    applyTheme(savedTheme);
+
     const token = localStorage.getItem('lf_token');
     if (token) {
-      console.log('Fetching profile from:', `${API}/api/profile`);
-      fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
+      console.log('[SettingsPage] Fetching profile from:', `${API}/api/profile`);
+      console.log('[SettingsPage] User role:', user.role);
+      
+      // Fetch profile data
+      const profilePromise = fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => {
-          console.log('Profile response status:', r.status);
+          console.log('[SettingsPage] Profile response status:', r.status);
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json();
         })
         .then(data => {
-          console.log('Profile data received:', data);
+          console.log('[SettingsPage] Profile data received:', data);
           if (data.id) {
-            setCurrentUser(data);
             setAvatarPreview(data.avatar || '');
             setTempLocation(data.tempLocation || null);
             setFormData({ phone: data.phone || '', province: data.province || '', district: data.district || '', municipality: data.municipality || '' });
+            return data;
           }
+          return null;
+        });
+
+      // Fetch fresh token data from dashboard stats (for donors only, not admin)
+      const statsPromise = user.role === 'user' 
+        ? fetch(`${API}/api/users/dashboard/stats`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => {
+              console.log('[SettingsPage] Stats response status:', r.status);
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              return r.json();
+            })
+            .then(stats => {
+              console.log('[SettingsPage] Stats data received:', stats);
+              return stats;
+            })
+        : Promise.resolve(null);
+
+      // Combine both results
+      Promise.all([profilePromise, statsPromise])
+        .then(([profileData, statsData]) => {
+          const updatedUser = { ...user };
+          
+          if (profileData) {
+            Object.assign(updatedUser, profileData);
+          }
+          
+          if (statsData && statsData.tokens !== undefined) {
+            console.log('[SettingsPage] Updating tokens from stats:', statsData.tokens);
+            updatedUser.tokens = statsData.tokens;
+          }
+          
+          setCurrentUser(updatedUser);
+          
+          // Update localStorage with fresh data
+          localStorage.setItem('lf_user', JSON.stringify(updatedUser));
         })
         .catch((err) => {
-          console.error('Failed to fetch profile:', err);
+          console.error('[SettingsPage] Failed to fetch data:', err);
           setSaveError('Failed to load profile data. Using cached data.');
         })
         .finally(() => setIsFetching(false));
@@ -319,17 +400,34 @@ export function SettingsPage() {
         body: JSON.stringify(payload),
       });
 
-      console.log('Save response status:', res.status);
+      console.log('[SettingsPage] Save response status:', res.status);
       const data = await res.json();
-      console.log('Save response data:', data);
+      console.log('[SettingsPage] Save response data:', data);
 
       if (!res.ok) { 
         setSaveError(data.error || 'Failed to save changes.'); 
         return; 
       }
 
-      // Persist to localStorage
-      const updatedUser = { ...currentUser, ...data };
+      // Fetch fresh token data after saving (for donors only, not admin)
+      let freshTokens = currentUser?.tokens;
+      if (userRole === 'user') {
+        try {
+          const statsRes = await fetch(`${API}/api/users/dashboard/stats`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (statsRes.ok) {
+            const stats = await statsRes.json();
+            console.log('[SettingsPage] Fresh token data after save:', stats.tokens);
+            freshTokens = stats.tokens;
+          }
+        } catch (err) {
+          console.error('[SettingsPage] Failed to fetch fresh tokens:', err);
+        }
+      }
+
+      // Persist to localStorage with fresh token data
+      const updatedUser = { ...currentUser, ...data, tokens: freshTokens };
       localStorage.setItem('lf_user', JSON.stringify(updatedUser));
       setCurrentUser(updatedUser);
       setTempLocation(data.tempLocation || null);
@@ -349,7 +447,7 @@ export function SettingsPage() {
   if (isFetching) {
     return (
       <div className="min-h-screen bg-gray-50 flex">
-        <Sidebar role="user" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Sidebar role={userRole} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="flex-1 flex items-center justify-center">
           <Loader2Icon className="w-8 h-8 text-primary animate-spin" />
         </div>
@@ -426,6 +524,31 @@ export function SettingsPage() {
             </div>
           </div>
         </Card>
+
+        {/* ── Token Points ────────────────────────────────────────────────── */}
+        {userRole === 'user' && (
+          <Card padding="lg" className="mb-6">
+            <h2 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <StarIcon className="w-4 h-4 text-yellow-500" /> Reward Tokens
+            </h2>
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl border-2 border-yellow-200">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Your Token Balance</p>
+                <p className="text-3xl font-bold text-yellow-600 flex items-center gap-2">
+                  <StarIcon className="w-8 h-8 fill-yellow-500 text-yellow-600" />
+                  {currentUser?.tokens || 0}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500">Earn tokens by</p>
+                <p className="text-xs font-semibold text-gray-700">completing blood donations</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-3">
+              💡 Earn 10 tokens for each successful blood donation at registered camps. Tokens can be redeemed for rewards and recognition.
+            </p>
+          </Card>
+        )}
 
         {/* ── Contact Information ─────────────────────────────────────────── */}
         <Card padding="lg" className="mb-6">

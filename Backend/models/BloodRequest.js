@@ -37,15 +37,25 @@ const bloodRequestSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    expiresAt: {
+    status: {
+      type: String,
+      enum: ["open", "pending", "fulfilled", "closed"],
+      default: "open",
+    },
+    acceptedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    acceptedAt: {
       type: Date,
+      default: null,
     },
   },
   { timestamps: true }
 );
 
-// Auto-expire after expiresAt passes
-bloodRequestSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// Index for efficient queries
 bloodRequestSchema.index({ isActive: 1, isEmergency: -1, createdAt: -1 });
 bloodRequestSchema.index({ userId: 1, isActive: 1 });
 

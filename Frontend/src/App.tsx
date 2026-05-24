@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
@@ -33,6 +33,9 @@ import { HospitalMessagesPage } from './pages/HospitalMessagesPage';
 import { CampApprovalsPage } from './pages/CampApprovalsPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import 'leaflet/dist/leaflet.css';
+import { HospitalDonationHistoryPage } from './pages/HospitalDonationHistoryPage';
+import { AdminSettingsPage } from './pages/AdminSettingsPage';
+import { ReportsAnalyticsPage } from './pages/ReportsAnalyticsPage';
 
 // Pages that should NOT show the Navbar/Footer
 const AUTH_PAGES = [
@@ -106,12 +109,13 @@ export function App() {
           <Route path="/hospital/chat" element={<ProtectedRoute allowedRoles={['hospital']}><HospitalMessagesPage /></ProtectedRoute>} />
           <Route path="/hospital/requests" element={<ProtectedRoute allowedRoles={['hospital']}><BloodRequestsPage /></ProtectedRoute>} />
           <Route path="/hospital/camps" element={<ProtectedRoute allowedRoles={['hospital']}><BloodCampsPage /></ProtectedRoute>} />
-          <Route path="/hospital/records" element={<ProtectedRoute allowedRoles={['hospital']}><DonationHistoryPage /></ProtectedRoute>} />
+          <Route path="/hospital/records" element={<ProtectedRoute allowedRoles={['hospital']}><HospitalDonationHistoryPage /></ProtectedRoute>} />
           <Route path="/hospital/settings" element={<ProtectedRoute allowedRoles={['hospital']}><SettingsPage /></ProtectedRoute>} />
           
           <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/camps" element={<ProtectedRoute allowedRoles={['admin']}><CampApprovalsPage /></ProtectedRoute>} />
-          <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><SettingsPage /></ProtectedRoute>} />
+          <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['admin']}><ReportsAnalyticsPage /></ProtectedRoute>} />
+          <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettingsPage /></ProtectedRoute>} />
 
           {/* Error Routes */}
           <Route path="/404" element={<ErrorPage />} />

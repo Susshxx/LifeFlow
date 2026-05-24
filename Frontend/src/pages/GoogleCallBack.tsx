@@ -184,7 +184,7 @@ export function GoogleCallback() {
         }
       } catch (err: any) {
         console.error('Google exchange error:', err.message);
-        navigate('/login?error=google_failed', { replace: true });
+        // navigate('/login?error=google_failed', { replace: true });
       }
     };
 

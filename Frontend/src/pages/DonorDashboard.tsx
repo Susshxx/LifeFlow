@@ -11,7 +11,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
-import { NotificationPanel } from '../components/features/NotificationPanel';
 import { MessagesPanel } from '../components/features/MessagesPanel';
 import { CampCard } from '../components/features/CampCard';
 
@@ -33,6 +32,7 @@ interface DashboardStats {
   bloodGroup: string;
   totalDonations: number;
   lastDonation: string | null;
+  daysSinceLastDonation: number | null;
   tokens: number;
   recentActivity: any[];
   eligibleToDonate: boolean;
@@ -55,14 +55,17 @@ export function DonorDashboard() {
   const isLoggedIn = !!localStorage.getItem('lf_token');
   const welcomeName = storedUser?.name || 'Donor';
 
-  // Placeholder data - TODO: Replace with real data from backend
-  const recentActivity: any[] = [];
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [upcomingCamps, setUpcomingCamps] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showAllNotificationsModal, setShowAllNotificationsModal] = useState(false);
+  const [bloodRequestNotification, setBloodRequestNotification] = useState<{
+    hospitalName: string;
+    bloodGroup: string;
+    requestId: string;
+  } | null>(null);
 
-  const upcomingCamps: any[] = [];
-
-  const notifications: any[] = [];
-
-  // Fetch dashboard stats
+  // Fetch dashboard stats and recent activity
   useEffect(() => {
     const fetchStats = async () => {
       const token = localStorage.getItem('lf_token');
@@ -81,7 +84,22 @@ export function DonorDashboard() {
 
         if (response.ok) {
           const data = await response.json();
+          
+          // If backend doesn't provide daysSinceLastDonation, calculate it on frontend
+          if (data.lastDonation && data.daysSinceLastDonation === undefined) {
+            data.daysSinceLastDonation = Math.floor(
+              (new Date().getTime() - new Date(data.lastDonation).getTime()) / (1000 * 60 * 60 * 24)
+            );
+          }
+          
           setDashboardStats(data);
+          
+          // Update local storage with latest token count
+          const storedUser = JSON.parse(localStorage.getItem('lf_user') || '{}');
+          if (storedUser && data.tokens !== undefined) {
+            storedUser.tokens = data.tokens;
+            localStorage.setItem('lf_user', JSON.stringify(storedUser));
+          }
         }
       } catch (err) {
         console.error('Failed to fetch dashboard stats:', err);
@@ -90,7 +108,209 @@ export function DonorDashboard() {
       }
     };
 
+    const fetchRecentActivity = async () => {
+      const token = localStorage.getItem('lf_token');
+      if (!token) return;
+
+      try {
+        // Fetch recent donation history
+        const historyRes = await fetch(`${API}/api/donation-history`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (historyRes.ok) {
+          const donations = await historyRes.json();
+          
+          // Convert donations to activity format
+          const activities = donations.slice(0, 5).map((donation: any) => ({
+            id: donation._id,
+            type: 'donation',
+            icon: DropletIcon,
+            title: 'Blood Donation Completed',
+            description: `Donated at ${donation.campTitle} - ${donation.hospitalName}`,
+            time: new Date(donation.donationDate).toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }),
+          }));
+          
+          setRecentActivity(activities);
+        }
+      } catch (err) {
+        console.error('Failed to fetch recent activity:', err);
+      }
+    };
+
+    const fetchUpcomingCamps = async () => {
+      const token = localStorage.getItem('lf_token');
+      if (!token) return;
+
+      try {
+        const campsRes = await fetch(`${API}/api/blood-camps`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (campsRes.ok) {
+          const camps = await campsRes.json();
+          
+          // Filter for upcoming/approved camps and limit to 3
+          const upcoming = camps
+            .filter((camp: any) => 
+              (camp.status === 'approved' || camp.status === 'upcoming') &&
+              new Date(camp.startTime) > new Date()
+            )
+            .sort((a: any, b: any) => 
+              new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+            )
+            .slice(0, 3);
+          
+          setUpcomingCamps(upcoming);
+        }
+      } catch (err) {
+        console.error('Failed to fetch upcoming camps:', err);
+      }
+    };
+
+    const fetchNotifications = async () => {
+      const token = localStorage.getItem('lf_token');
+      if (!token) {
+        console.log('No token found for notifications');
+        return;
+      }
+
+      try {
+        console.log('Fetching notifications...');
+        
+        // Get dismissed and read notifications from localStorage
+        const dismissedIds = JSON.parse(localStorage.getItem('lf_dismissed_notifications') || '[]');
+        const readNotificationIds = JSON.parse(localStorage.getItem('lf_read_notifications') || '[]');
+        
+        // Fetch all connections to get messages
+        const connectionsRes = await fetch(`${API}/api/connections`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (connectionsRes.ok) {
+          const connections = await connectionsRes.json();
+          console.log('Connections found:', connections.length);
+          const allNotifications: any[] = [];
+
+          // Fetch messages from each connection
+          for (const conn of connections) {
+            try {
+              const messagesRes = await fetch(`${API}/api/connections/${conn._id}/messages`, {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+
+              if (messagesRes.ok) {
+                const messages = await messagesRes.json();
+                console.log(`Messages in connection ${conn._id}:`, messages.length);
+                
+                // Filter for notification messages (those starting with 📢 Notification:)
+                const notificationMessages = messages
+                  .filter((msg: any) => {
+                    const isText = msg.type === 'text';
+                    const hasPrefix = msg.content && msg.content.startsWith('📢 Notification:');
+                    const notFromMe = msg.sender._id !== storedUser?.id && msg.sender._id !== storedUser?._id;
+                    const notDismissed = !dismissedIds.includes(msg._id);
+                    
+                    console.log('Message check:', {
+                      id: msg._id,
+                      isText,
+                      hasPrefix,
+                      notFromMe,
+                      notDismissed,
+                      content: msg.content?.substring(0, 50)
+                    });
+                    
+                    return isText && hasPrefix && notFromMe && notDismissed;
+                  })
+                  .map((msg: any) => {
+                    const createdDate = new Date(msg.createdAt);
+                    const now = new Date();
+                    const diffMs = now.getTime() - createdDate.getTime();
+                    const diffMins = Math.floor(diffMs / 60000);
+                    const diffHours = Math.floor(diffMs / 3600000);
+                    const diffDays = Math.floor(diffMs / 86400000);
+                    
+                    let timeStr;
+                    if (diffMins < 1) {
+                      timeStr = 'Just now';
+                    } else if (diffMins < 60) {
+                      timeStr = `${diffMins}m ago`;
+                    } else if (diffHours < 24) {
+                      timeStr = `${diffHours}h ago`;
+                    } else if (diffDays < 7) {
+                      timeStr = `${diffDays}d ago`;
+                    } else {
+                      timeStr = createdDate.toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric'
+                      });
+                    }
+                    
+                    return {
+                      id: msg._id,
+                      type: 'info' as const,
+                      title: msg.sender.name || 'Hospital',
+                      message: msg.content.replace('📢 Notification:', '').trim(),
+                      time: timeStr,
+                      createdAt: msg.createdAt,
+                      isRead: readNotificationIds.includes(msg._id), // Check localStorage instead of readBy array
+                      action: {
+                        label: 'View Message',
+                        href: '/dashboard/chat'
+                      }
+                    };
+                  });
+
+                console.log('Notification messages found:', notificationMessages.length);
+                allNotifications.push(...notificationMessages);
+              }
+            } catch (err) {
+              console.error('Failed to fetch messages for connection:', err);
+            }
+          }
+
+          // Sort by createdAt (most recent first)
+          allNotifications.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          
+          console.log('Total notifications to display:', allNotifications.length);
+          setNotifications(allNotifications);
+        } else {
+          console.error('Failed to fetch connections:', connectionsRes.status);
+        }
+      } catch (err) {
+        console.error('Failed to fetch notifications:', err);
+      }
+    };
+
     fetchStats();
+    fetchRecentActivity();
+    fetchUpcomingCamps();
+    fetchNotifications();
+    
+    // Refresh stats every 30 seconds to catch updates
+    const interval = setInterval(() => {
+      fetchStats();
+      fetchRecentActivity();
+      fetchNotifications();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Load emergency requests from localStorage (written by SearchPage) or fetch directly
@@ -174,6 +394,39 @@ export function DonorDashboard() {
       .catch(loadEmergencies); // fallback to cached
   }, []);
 
+  // Fetch blood request notifications
+  useEffect(() => {
+    const fetchBloodRequestNotification = async () => {
+      const token = localStorage.getItem('lf_token');
+      if (!token) return;
+
+      try {
+        const res = await fetch(`${API}/api/blood-requests/my-notifications`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.notification) {
+            setBloodRequestNotification({
+              hospitalName: data.notification.hospitalName,
+              bloodGroup: data.notification.bloodGroup,
+              requestId: data.notification.requestId
+            });
+          } else {
+            setBloodRequestNotification(null);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch blood request notification:', err);
+      }
+    };
+
+    fetchBloodRequestNotification();
+    const interval = setInterval(fetchBloodRequestNotification, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
   // Listen for updates from SearchPage
   useEffect(() => {
     const handler = () => loadEmergencies();
@@ -201,6 +454,49 @@ export function DonorDashboard() {
     navigate('/');
   };
 
+  const handleMarkNotificationAsRead = (notificationId: string) => {
+    // Add to read list in localStorage
+    const readIds = JSON.parse(localStorage.getItem('lf_read_notifications') || '[]');
+    if (!readIds.includes(notificationId)) {
+      readIds.push(notificationId);
+      localStorage.setItem('lf_read_notifications', JSON.stringify(readIds));
+    }
+    
+    // Update state
+    setNotifications(prev => 
+      prev.map(notif => 
+        notif.id === notificationId ? { ...notif, isRead: true } : notif
+      )
+    );
+  };
+
+  const handleMarkAllNotificationsAsRead = () => {
+    // Add all notification IDs to read list in localStorage
+    const readIds = JSON.parse(localStorage.getItem('lf_read_notifications') || '[]');
+    const allNotificationIds = notifications.map(n => n.id);
+    const updatedReadIds = [...new Set([...readIds, ...allNotificationIds])];
+    localStorage.setItem('lf_read_notifications', JSON.stringify(updatedReadIds));
+    
+    // Update state
+    setNotifications(prev => 
+      prev.map(notif => ({ ...notif, isRead: true }))
+    );
+  };
+
+  const handleDismissNotification = (notificationId: string) => {
+    // Add to dismissed list in localStorage
+    const dismissedIds = JSON.parse(localStorage.getItem('lf_dismissed_notifications') || '[]');
+    if (!dismissedIds.includes(notificationId)) {
+      dismissedIds.push(notificationId);
+      localStorage.setItem('lf_dismissed_notifications', JSON.stringify(dismissedIds));
+    }
+    
+    // Remove from current notifications
+    setNotifications(prev => 
+      prev.filter(notif => notif.id !== notificationId)
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       <Sidebar role="user" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -225,12 +521,12 @@ export function DonorDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button className="relative p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+              {/* <button className="relative p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
                 <BellIcon className="w-6 h-6" />
                 {emergencyRequests.length > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-600 rounded-full" />
                 )}
-              </button>
+              </button> */}
               <Button variant="primary" leftIcon={<DropletIcon className="w-4 h-4" />} onClick={() => navigate('/search')}>
                 Donate Now
               </Button>
@@ -269,6 +565,33 @@ export function DonorDashboard() {
           </div>
         )}
 
+        {/* Blood Request Notification Banner */}
+        {bloodRequestNotification && (
+          <div
+            style={{ background: '#fbbf24', color: '#78350f', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottom: '2px solid #f59e0b' }}
+            role="alert"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+              <span style={{ fontSize: 20 }}>🩸</span>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 14, margin: 0 }}>
+                  Blood Request Accepted!
+                </p>
+                <p style={{ fontSize: 12, margin: '2px 0 0', opacity: 0.9 }}>
+                  <strong>{bloodRequestNotification.hospitalName}</strong> has accepted your request for <strong>{bloodRequestNotification.bloodGroup}</strong> blood
+                </p>
+              </div>
+            </div>
+            <button
+              // onClick={() => navigate('/MessagesPage.tsx')}
+              onClick={() => navigate('/dashboard/chat')}
+              style={{ background: '#78350f', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              💬 View in Messages
+            </button>
+          </div>
+        )}
+
         <div className="p-4 lg:p-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {statsLoading ? (
@@ -292,8 +615,16 @@ export function DonorDashboard() {
                 />
                 <StatsCard
                   title="Last Donation"
-                  value={dashboardStats?.lastDonation ? new Date(dashboardStats.lastDonation).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Never'}
-                  subtitle={dashboardStats?.lastDonation ? new Date(dashboardStats.lastDonation).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No donations yet'}
+                  value={
+                    dashboardStats && dashboardStats.daysSinceLastDonation !== null 
+                      ? `${dashboardStats.daysSinceLastDonation} Days` 
+                      : 'Never'
+                  }
+                  subtitle={
+                    dashboardStats?.lastDonation 
+                      ? new Date(dashboardStats.lastDonation).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) 
+                      : 'No donations yet'
+                  }
                   icon={<CalendarIcon className="w-6 h-6" />}
                   variant="secondary"
                 />
@@ -358,9 +689,17 @@ export function DonorDashboard() {
                   <Button variant="ghost" size="sm" rightIcon={<ChevronRightIcon className="w-4 h-4" />} onClick={() => navigate('/dashboard/camps')}>View All</Button>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {upcomingCamps.map(camp => <CampCard key={camp.id} {...camp} />)}
-                  </div>
+                  {upcomingCamps.length > 0 ? (
+                    <div className="space-y-4">
+                      {upcomingCamps.map(camp => <CampCard key={camp._id || camp.id} {...camp} />)}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <CalendarIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">No upcoming camps</p>
+                      <p className="text-xs text-gray-400 mt-1">Check back later for new blood donation camps</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -368,24 +707,32 @@ export function DonorDashboard() {
               <Card>
                 <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {recentActivity.map((activity, index) => (
-                      <div key={activity.id} className={`flex items-start gap-4 ${index !== recentActivity.length - 1 ? 'pb-4 border-b border-gray-100' : ''}`}>
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
-                          ${activity.type === 'donation' ? 'bg-primary/10 text-primary' : ''}
-                          ${activity.type === 'reward' ? 'bg-warning/10 text-warning' : ''}
-                          ${activity.type === 'camp' ? 'bg-secondary/10 text-secondary' : ''}
-                          ${activity.type === 'alert' ? 'bg-emergency/10 text-emergency' : ''}`}>
-                          <activity.icon className="w-5 h-5" />
+                  {recentActivity.length > 0 ? (
+                    <div className="space-y-4">
+                      {recentActivity.map((activity, index) => (
+                        <div key={activity.id} className={`flex items-start gap-4 ${index !== recentActivity.length - 1 ? 'pb-4 border-b border-gray-100' : ''}`}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
+                            ${activity.type === 'donation' ? 'bg-primary/10 text-primary' : ''}
+                            ${activity.type === 'reward' ? 'bg-warning/10 text-warning' : ''}
+                            ${activity.type === 'camp' ? 'bg-secondary/10 text-secondary' : ''}
+                            ${activity.type === 'alert' ? 'bg-emergency/10 text-emergency' : ''}`}>
+                            <activity.icon className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900">{activity.title}</p>
+                            <p className="text-sm text-gray-500">{activity.description}</p>
+                          </div>
+                          <span className="text-xs text-gray-400 flex-shrink-0">{activity.time}</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900">{activity.title}</p>
-                          <p className="text-sm text-gray-500">{activity.description}</p>
-                        </div>
-                        <span className="text-xs text-gray-400 flex-shrink-0">{activity.time}</span>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <ActivityIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">No recent activity</p>
+                      <p className="text-xs text-gray-400 mt-1">Your donation history will appear here</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -393,7 +740,89 @@ export function DonorDashboard() {
             {/* Sidebar */}
             <div className="space-y-8">
               <MessagesPanel />
-              <NotificationPanel notifications={notifications} />
+              
+              {/* Simple Notifications List */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <BellIcon className="w-5 h-5 text-gray-400" />
+                      <CardTitle>Notifications</CardTitle>
+                      {notifications.filter(n => !n.isRead).length > 0 && (
+                        <span className="px-2 py-0.5 text-xs font-semibold bg-primary text-white rounded-full">
+                          {notifications.filter(n => !n.isRead).length}
+                        </span>
+                      )}
+                    </div>
+                    {notifications.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        {notifications.filter(n => !n.isRead).length > 0 && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={handleMarkAllNotificationsAsRead}
+                            className="text-primary text-xs"
+                          >
+                            Mark All Read
+                          </Button>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setShowAllNotificationsModal(true)}
+                          className="text-primary text-xs"
+                        >
+                          See All
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-8">
+                      <BellIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-500">No notifications yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {notifications.slice(0, 5).map((notif) => (
+                        <div
+                          key={notif.id}
+                          className={`p-3 rounded-lg border transition-colors cursor-pointer ${
+                            notif.isRead ? 'bg-white border-gray-100' : 'bg-blue-50 border-blue-200'
+                          }`}
+                          onClick={() => handleMarkNotificationAsRead(notif.id)}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-medium text-gray-900 ${!notif.isRead ? 'font-semibold' : ''}`}>
+                                {notif.title}
+                              </p>
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                {notif.message}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDismissNotification(notif.id);
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-600 rounded flex-shrink-0"
+                              title="Dismiss"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               <Card>
                 <CardHeader>
@@ -546,6 +975,93 @@ export function DonorDashboard() {
               Skip for now
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* All Notifications Modal */}
+      <Modal 
+        isOpen={showAllNotificationsModal} 
+        onClose={() => setShowAllNotificationsModal(false)} 
+        title="All Notifications"
+        size="md"
+      >
+        <div className="space-y-3">
+          {notifications.length === 0 ? (
+            <div className="text-center py-12">
+              <BellIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">No notifications yet</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-gray-600">
+                  {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
+                </p>
+                {notifications.filter(n => !n.isRead).length > 0 && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleMarkAllNotificationsAsRead}
+                    className="text-primary"
+                  >
+                    Mark all as read
+                  </Button>
+                )}
+              </div>
+              <div className="max-h-96 overflow-y-auto space-y-2">
+                {notifications.map((notif) => (
+                  <div
+                    key={notif.id}
+                    className={`p-4 rounded-lg border transition-colors ${
+                      notif.isRead ? 'bg-white border-gray-100' : 'bg-blue-50 border-blue-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className={`text-sm font-medium text-gray-900 ${!notif.isRead ? 'font-semibold' : ''}`}>
+                            {notif.title}
+                          </p>
+                          {!notif.isRead && (
+                            <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {notif.message}
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <p className="text-xs text-gray-400">{notif.time}</p>
+                          {!notif.isRead && (
+                            <button
+                              onClick={() => handleMarkNotificationAsRead(notif.id)}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Mark as read
+                            </button>
+                          )}
+                          <button
+                            onClick={() => navigate('/dashboard/chat')}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            View message
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDismissNotification(notif.id)}
+                        className="p-1 text-gray-400 hover:text-red-600 rounded flex-shrink-0"
+                        title="Dismiss"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>

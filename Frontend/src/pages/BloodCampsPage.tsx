@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   FilterIcon, MapIcon, ListIcon, CalendarIcon, ClockIcon,
   LocateIcon, NavigationIcon, MapPinIcon, UsersIcon, CheckCircleIcon, MenuIcon,
-  PlusIcon, XIcon,
+  PlusIcon,
 } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
 import { Button } from '../components/ui/Button';
@@ -246,7 +246,6 @@ export function BloodCampsPage() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
-  const [showFilters, setShowFilters] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locError, setLocError] = useState('');
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
@@ -305,72 +304,73 @@ export function BloodCampsPage() {
     setTimeout(() => setToast(null), 3500);
   }, []);
 
-  // Fetch camps and users from API
-  useEffect(() => {
-    const fetchData = async () => {
-      const token = localStorage.getItem('lf_token');
-      if (!token) {
-        setLoading(false);
-        return;
+  // Fetch camps function
+  const fetchCamps = useCallback(async () => {
+    const token = localStorage.getItem('lf_token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const campsRes = await fetch(`${API}/api/blood-camps`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (campsRes.ok) {
+        const campsData = await campsRes.json();
+        
+        // Calculate dynamic status for each camp based on time
+        const now = new Date();
+        const campsWithStatus = campsData.map((camp: any) => {
+          if (camp.status === 'approved') {
+            const startTime = new Date(camp.startTime);
+            const endTime = new Date(startTime);
+            endTime.setHours(endTime.getHours() + (camp.duration || 0));
+            
+            // Update status based on time
+            if (now > endTime) {
+              return { ...camp, status: 'completed' };
+            } else if (now >= startTime && now <= endTime) {
+              return { ...camp, status: 'ongoing' };
+            } else {
+              return { ...camp, status: 'upcoming' };
+            }
+          }
+          return camp;
+        });
+        
+        setCamps(campsWithStatus);
+      } else {
+        const errorData = await campsRes.json().catch(() => ({ error: 'Unknown error' }));
+        showToast(errorData.error || 'Failed to load blood camps', 'error');
       }
 
-      setLoading(true);
       try {
-        const campsRes = await fetch(`${API}/api/blood-camps`, {
+        const usersRes = await fetch(`${API}/api/users`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (campsRes.ok) {
-          const campsData = await campsRes.json();
-          
-          // Calculate dynamic status for each camp based on time
-          const now = new Date();
-          const campsWithStatus = campsData.map((camp: any) => {
-            if (camp.status === 'approved') {
-              const startTime = new Date(camp.startTime);
-              const endTime = new Date(startTime);
-              endTime.setHours(endTime.getHours() + (camp.duration || 0));
-              
-              // Update status based on time
-              if (now > endTime) {
-                return { ...camp, status: 'completed' };
-              } else if (now >= startTime && now <= endTime) {
-                return { ...camp, status: 'ongoing' };
-              } else {
-                return { ...camp, status: 'upcoming' };
-              }
-            }
-            return camp;
-          });
-          
-          setCamps(campsWithStatus);
-        } else {
-          const errorData = await campsRes.json().catch(() => ({ error: 'Unknown error' }));
-          showToast(errorData.error || 'Failed to load blood camps', 'error');
-        }
-
-        try {
-          const usersRes = await fetch(`${API}/api/users`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (usersRes.ok) {
-            const usersData = await usersRes.json();
-            setUsers(usersData.filter((u: any) => u.tempLocation?.lat && u.tempLocation?.lng));
-          }
-        } catch (err) {
-          console.error('Failed to fetch users:', err);
+        if (usersRes.ok) {
+          const usersData = await usersRes.json();
+          setUsers(usersData.filter((u: any) => u.tempLocation?.lat && u.tempLocation?.lng));
         }
       } catch (err) {
-        console.error('Failed to fetch data:', err);
-        showToast('Failed to load data. Please check your connection.', 'error');
-      } finally {
-        setLoading(false);
+        console.error('Failed to fetch users:', err);
       }
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 60000);
-    return () => clearInterval(interval);
+    } catch (err) {
+      console.error('Failed to fetch data:', err);
+      showToast('Failed to load data. Please check your connection.', 'error');
+    } finally {
+      setLoading(false);
+    }
   }, [showToast]);
+
+  // Fetch camps and users from API
+  useEffect(() => {
+    fetchCamps();
+    const interval = setInterval(fetchCamps, 60000);
+    return () => clearInterval(interval);
+  }, [fetchCamps]);
 
   // Place "you" marker
   const placeYouMarker = useCallback((lat: number, lng: number) => {
@@ -920,7 +920,7 @@ export function BloodCampsPage() {
 
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Sidebar filters */}
-            <aside className={`lg:w-80 flex-shrink-0 ${showFilters ? 'block' : 'hidden lg:block'}`}>
+            <aside className="lg:w-80 flex-shrink-0">
               <Card className="sticky top-24">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-heading font-semibold text-gray-900 flex items-center gap-2">
@@ -1336,32 +1336,116 @@ export function BloodCampsPage() {
                 <div className="pt-4 border-t">
                   <h4 className="text-lg font-semibold text-gray-900 mb-3">Registered Donors ({(selectedCampForDetails as any).registeredDonors.length})</h4>
                   <div className="max-h-64 overflow-y-auto space-y-2">
-                    {(selectedCampForDetails as any).registeredDonors.map((donor: any, idx: number) => (
-                      <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{donor.fullName || donor.userId?.name || 'Anonymous'}</p>
-                            <div className="mt-1 space-y-1 text-xs text-gray-600">
-                              {donor.email && <p>📧 {donor.email}</p>}
-                              {donor.phone && <p>📱 {donor.phone}</p>}
-                              {donor.age && <p>👤 Age: {donor.age}</p>}
-                              {donor.weight && <p>⚖️ Weight: {donor.weight} kg</p>}
-                              {donor.lastDonationMonth && donor.lastDonationYear && (
-                                <p>🩸 Last Donation: {donor.lastDonationMonth} {donor.lastDonationYear}</p>
+                    {(selectedCampForDetails as any).registeredDonors.map((donor: any, idx: number) => {
+                      const donorUserId = donor.userId?._id || donor.userId;
+                      const donationCompleted = donor.donationCompleted || false;
+                      
+                      return (
+                        <div key={idx} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-gray-900">{donor.fullName || donor.userId?.name || 'Anonymous'}</p>
+                                {donationCompleted && (
+                                  <Badge variant="success" className="text-xs">
+                                    <CheckCircleIcon className="w-3 h-3 mr-1" />
+                                    Completed
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="mt-1 space-y-1 text-xs text-gray-600">
+                                {donor.email && <p>📧 {donor.email}</p>}
+                                {donor.phone && <p>📱 {donor.phone}</p>}
+                                {donor.age && <p>👤 Age: {donor.age}</p>}
+                                {donor.weight && <p>⚖️ Weight: {donor.weight} kg</p>}
+                                {donor.lastDonationMonth && donor.lastDonationYear && (
+                                  <p>🩸 Last Donation: {donor.lastDonationMonth} {donor.lastDonationYear}</p>
+                                )}
+                                {donor.userId?.bloodGroup && (
+                                  <p>🩸 Blood Group: <span className="font-semibold text-red-600">{donor.userId.bloodGroup}</span></p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              {donor.registeredAt && (
+                                <p className="text-xs text-gray-400 text-right">
+                                  {new Date(donor.registeredAt).toLocaleDateString()}
+                                </p>
                               )}
-                              {donor.userId?.bloodGroup && (
-                                <p>🩸 Blood Group: <span className="font-semibold text-red-600">{donor.userId.bloodGroup}</span></p>
+                              {userRole === 'hospital' && (
+                                donationCompleted ? (
+                                  <Badge variant="success" className="text-xs whitespace-nowrap">
+                                    <CheckCircleIcon className="w-3 h-3 mr-1" />
+                                    Completed
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="primary"
+                                    onClick={async () => {
+                                      if (!donorUserId) {
+                                        alert('Donor ID not found');
+                                        return;
+                                      }
+                                      
+                                      const confirmed = window.confirm(
+                                        `Mark donation as completed for ${donor.fullName || donor.userId?.name}?\n\nThis will award 10 tokens to the donor.`
+                                      );
+                                      
+                                      if (!confirmed) return;
+                                      
+                                      try {
+                                        const token = localStorage.getItem('lf_token');
+                                        const campId = selectedCampForDetails._id || selectedCampForDetails.id;
+                                        
+                                        const res = await fetch(`${API}/api/blood-camps/${campId}/complete-donation`, {
+                                          method: 'POST',
+                                          headers: {
+                                            'Content-Type': 'application/json',
+                                            Authorization: `Bearer ${token}`,
+                                          },
+                                          body: JSON.stringify({ donorUserId }),
+                                        });
+                                        
+                                        if (!res.ok) {
+                                          const data = await res.json();
+                                          throw new Error(data.error || 'Failed to complete donation');
+                                        }
+                                        
+                                        const result = await res.json();
+                                        alert(`Donation marked as completed! ${result.tokensAwarded || 10} tokens awarded to donor.`);
+                                        
+                                        // Update the donor in the current state to show completed status
+                                        const updatedCamp = { ...selectedCampForDetails };
+                                        if (updatedCamp.registeredDonors) {
+                                          const donorIndex = updatedCamp.registeredDonors.findIndex((d: any) => 
+                                            (d.userId?._id || d.userId) === donorUserId
+                                          );
+                                          if (donorIndex !== -1) {
+                                            updatedCamp.registeredDonors[donorIndex].donationCompleted = true;
+                                            updatedCamp.registeredDonors[donorIndex].completedAt = new Date().toISOString();
+                                          }
+                                        }
+                                        setSelectedCampForDetails(updatedCamp);
+                                        
+                                        // Refresh the camp list
+                                        fetchCamps();
+                                      } catch (err: any) {
+                                        alert(err.message || 'Failed to complete donation');
+                                      }
+                                    }}
+                                    className="bg-green-600 hover:bg-green-700 text-xs whitespace-nowrap"
+                                  >
+                                    <CheckCircleIcon className="w-3 h-3 mr-1" />
+                                    Complete
+                                  </Button>
+                                )
                               )}
                             </div>
                           </div>
-                          {donor.registeredAt && (
-                            <p className="text-xs text-gray-400 ml-2">
-                              {new Date(donor.registeredAt).toLocaleDateString()}
-                            </p>
-                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

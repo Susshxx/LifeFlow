@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  CalendarIcon, DropletIcon, MapPinIcon, AwardIcon, TrendingUpIcon,
+  CalendarIcon, DropletIcon, MapPinIcon, AwardIcon,
   DownloadIcon, SearchIcon, MenuIcon,
 } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
@@ -10,34 +10,25 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Select } from '../components/ui/Select';
 
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 interface DonationRecord {
-  id: string;
-  date: string;
+  _id: string;
+  donorId: any;
+  hospitalId: any;
+  campId: any;
+  donorName: string;
+  hospitalName: string;
+  campTitle: string;
   bloodGroup: string;
+  donationDate: string;
+  tokensAwarded: number;
   location: string;
-  hospital: string;
-  units: number;
-  status: 'completed' | 'verified' | 'pending';
-  certificateUrl?: string;
-  notes?: string;
+  notes: string;
+  createdAt: string;
 }
 
-// TODO: Fetch from API when backend endpoint is ready
-const sampleDonations: DonationRecord[] = [];
-
 function DonationCard({ donation }: { donation: DonationRecord }) {
-  const statusColors = {
-    completed: 'bg-blue-100 text-blue-700',
-    verified: 'bg-green-100 text-green-700',
-    pending: 'bg-yellow-100 text-yellow-700',
-  };
-
-  const statusLabels = {
-    completed: 'Completed',
-    verified: 'Verified',
-    pending: 'Pending Verification',
-  };
-
   return (
     <Card className="hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
@@ -46,13 +37,17 @@ function DonationCard({ donation }: { donation: DonationRecord }) {
             <DropletIcon className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <p className="font-semibold text-gray-900">{donation.hospital}</p>
-            <p className="text-sm text-gray-500">{new Date(donation.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <p className="font-semibold text-gray-900">{donation.hospitalName}</p>
+            <p className="text-sm text-gray-500">{new Date(donation.donationDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
           </div>
         </div>
-        <Badge className={statusColors[donation.status]}>
-          {statusLabels[donation.status]}
+        <Badge className="bg-green-100 text-green-700">
+          Completed
         </Badge>
+      </div>
+
+      <div className="mb-3">
+        <p className="text-sm font-medium text-gray-700">{donation.campTitle}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 text-sm">
@@ -62,25 +57,17 @@ function DonationCard({ donation }: { donation: DonationRecord }) {
         </div>
         <div className="flex items-center gap-2 text-gray-600">
           <MapPinIcon className="w-4 h-4 flex-shrink-0" />
-          <span>{donation.location}</span>
+          <span>{donation.location || 'N/A'}</span>
         </div>
         <div className="flex items-center gap-2 text-gray-600">
           <AwardIcon className="w-4 h-4 flex-shrink-0" />
-          <span>{donation.units} unit{donation.units > 1 ? 's' : ''}</span>
+          <span>+{donation.tokensAwarded} tokens</span>
         </div>
       </div>
 
       {donation.notes && (
         <div className="mt-3 pt-3 border-t border-gray-100">
           <p className="text-xs text-gray-500">{donation.notes}</p>
-        </div>
-      )}
-
-      {donation.status === 'verified' && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <Button variant="outline" size="sm" fullWidth leftIcon={<DownloadIcon className="w-3 h-3" />}>
-            Download Certificate
-          </Button>
         </div>
       )}
     </Card>
@@ -110,37 +97,75 @@ export function DonationHistoryPage() {
 
   const me = (() => { try { return JSON.parse(localStorage.getItem('lf_user') || 'null'); } catch { return null; } })();
   const userRole = me?.role || 'user';
-  const [donations] = useState<DonationRecord[]>(sampleDonations);
+  const [donations, setDonations] = useState<DonationRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterYear, setFilterYear] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+
+  // Fetch donation history
+  useEffect(() => {
+    const fetchDonationHistory = async () => {
+      const token = localStorage.getItem('lf_token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API}/api/donation-history`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setDonations(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch donation history:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDonationHistory();
+  }, []);
 
   // Calculate statistics
   const totalDonations = donations.length;
-  const verifiedDonations = donations.filter(d => d.status === 'verified').length;
-  const totalUnits = donations.reduce((sum, d) => sum + d.units, 0);
-  const lastDonation = donations.length > 0 ? donations[0].date : null;
+  const totalTokens = donations.reduce((sum, d) => sum + d.tokensAwarded, 0);
+  const lastDonation = donations.length > 0 ? donations[0].donationDate : null;
 
   // Get unique years for filter
-  const years = Array.from(new Set(donations.map(d => new Date(d.date).getFullYear()))).sort((a, b) => b - a);
+  const years = Array.from(new Set(donations.map(d => new Date(d.donationDate).getFullYear()))).sort((a, b) => b - a);
 
   // Filter donations
   const filteredDonations = donations.filter(donation => {
     const matchesSearch = !searchTerm || 
-      donation.hospital.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      donation.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      donation.hospitalName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      donation.campTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      donation.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       donation.notes?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesYear = !filterYear || new Date(donation.date).getFullYear().toString() === filterYear;
-    const matchesStatus = !filterStatus || donation.status === filterStatus;
+    const matchesYear = !filterYear || new Date(donation.donationDate).getFullYear().toString() === filterYear;
 
-    return matchesSearch && matchesYear && matchesStatus;
+    return matchesSearch && matchesYear;
   });
 
   // Calculate days since last donation
   const daysSinceLastDonation = lastDonation 
     ? Math.floor((new Date().getTime() - new Date(lastDonation).getTime()) / (1000 * 60 * 60 * 24))
     : null;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -183,23 +208,23 @@ export function DonationHistoryPage() {
             color="bg-primary"
           />
           <StatsCard
-            title="Verified Donations"
-            value={verifiedDonations.toString()}
-            subtitle={`${Math.round((verifiedDonations / totalDonations) * 100)}% verified`}
+            title="Total Tokens Earned"
+            value={totalTokens.toString()}
+            subtitle="Reward points"
             icon={<AwardIcon className="w-6 h-6 text-white" />}
             color="bg-success"
           />
           <StatsCard
-            title="Total Units"
-            value={totalUnits.toString()}
-            subtitle="Blood units donated"
-            icon={<TrendingUpIcon className="w-6 h-6 text-white" />}
+            title="Blood Group"
+            value={me?.bloodGroup || 'N/A'}
+            subtitle="Your blood type"
+            icon={<DropletIcon className="w-6 h-6 text-white" />}
             color="bg-secondary"
           />
           <StatsCard
             title="Last Donation"
-            value={daysSinceLastDonation ? `${daysSinceLastDonation}d` : 'N/A'}
-            subtitle={lastDonation ? new Date(lastDonation).toLocaleDateString() : 'No donations yet'}
+            value={daysSinceLastDonation !== null ? `${daysSinceLastDonation} Days` : 'Never'}
+            subtitle={lastDonation ? new Date(lastDonation).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No donations yet'}
             icon={<CalendarIcon className="w-6 h-6 text-white" />}
             color="bg-warning"
           />
@@ -227,24 +252,12 @@ export function DonationHistoryPage() {
               onChange={(e) => setFilterYear(e.target.value)}
               className="md:w-40"
             />
-            <Select
-              options={[
-                { value: '', label: 'All Status' },
-                { value: 'verified', label: 'Verified' },
-                { value: 'completed', label: 'Completed' },
-                { value: 'pending', label: 'Pending' },
-              ]}
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="md:w-40"
-            />
-            {(searchTerm || filterYear || filterStatus) && (
+            {(searchTerm || filterYear) && (
               <Button
                 variant="outline"
                 onClick={() => {
                   setSearchTerm('');
                   setFilterYear('');
-                  setFilterStatus('');
                 }}
               >
                 Clear Filters
@@ -264,7 +277,7 @@ export function DonationHistoryPage() {
           {filteredDonations.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredDonations.map(donation => (
-                <DonationCard key={donation.id} donation={donation} />
+                <DonationCard key={donation._id} donation={donation} />
               ))}
             </div>
           ) : (
@@ -273,9 +286,9 @@ export function DonationHistoryPage() {
                 <DropletIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500 mb-2">No donations found</p>
                 <p className="text-sm text-gray-400">
-                  {searchTerm || filterYear || filterStatus
+                  {searchTerm || filterYear
                     ? 'Try adjusting your filters'
-                    : 'Your donation history will appear here'}
+                    : 'Your donation history will appear here after you complete donations at blood camps'}
                 </p>
               </div>
             </Card>

@@ -122,8 +122,13 @@ const userSchema = new mongoose.Schema(
     hospitalRegNumber: { type: String, default: "" },
 
     isVerified:    { type: Boolean, default: false },
+    verified:      { type: Boolean, default: false }, // Admin verification status
+    rejectionReason: { type: String, default: "" },   // Reason if rejected by admin
     avatar:        { type: String, default: "" },
     documentPhoto: { type: String, default: "" },
+
+    // ── Token points for blood donation rewards ───────────────────────────────
+    tokens: { type: Number, default: 0 },
 
     // ── Temporary location ────────────────────────────────────────────────────
     // Set during registration; shown as a yellow pin on the search map.

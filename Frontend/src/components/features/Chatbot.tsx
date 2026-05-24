@@ -257,13 +257,17 @@ function ConvItem({ conn, myId, preview, onClick, active }: {
 
 // ── Sub-component: message bubble ─────────────────────────────────────────────
 // ✅ Long-press / hover reveals a delete button for soft-deleting the message
-function MsgBubble({ msg, isMe, otherUserId, onDelete }: {
+function MsgBubble({ msg, isMe, otherUserId, onDelete, onOpenMessages }: {
   msg: ChatMessage; isMe: boolean; otherUserId: string;
   onDelete: (id: string) => void;
+  onOpenMessages?: () => void;
 }) {
   const [showDelete, setShowDelete] = useState(false);
   const bg    = isMe ? '#ef4444' : '#fff';
   const color = isMe ? '#fff' : '#1f2937';
+
+  // Check if this is a blood request notification
+  const isBloodRequestNotification = !isMe && msg.type === 'text' && msg.content.includes('BLOOD_REQUEST_NOTIFICATION');
 
   const inner = (() => {
     if (msg.type === 'image') return (
@@ -286,6 +290,63 @@ function MsgBubble({ msg, isMe, otherUserId, onDelete }: {
         </div>
       </a>
     );
+    
+    // Blood request notification with clickable link
+    if (isBloodRequestNotification) {
+      // Extract hospital name and message text from the notification
+      const lines = msg.content.split('\n');
+      const hospitalLine = lines.find(l => l.startsWith('Hospital:'));
+      const hospitalName = hospitalLine ? hospitalLine.replace('Hospital:', '').trim() : 'A hospital';
+      
+      // Get the actual message text (everything after "Request ID: xxx")
+      const textLine = lines.find(l => 
+        !l.startsWith('🩸') && 
+        !l.startsWith('Hospital:') && 
+        !l.startsWith('Request ID:') && 
+        !l.startsWith('Blood Group:') &&
+        l.trim().length > 0
+      );
+      
+      return (
+        <div>
+          <div style={{
+            background: '#fef3c7',
+            padding: '10px 12px',
+            borderRadius: 8,
+            marginBottom: 8,
+            border: '1px solid #fbbf24',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 18 }}>🩸</span>
+              <strong style={{ fontSize: 13, color: '#92400e' }}>Blood Request Accepted!</strong>
+            </div>
+            <p style={{ fontSize: 12, color: '#92400e', margin: 0, lineHeight: 1.5 }}>
+              {textLine || `${hospitalName}`}
+            </p>
+          {/* Clickable link to messages page */}
+          {onOpenMessages && (
+            <button
+              onClick={onOpenMessages}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                color: '#b45309',
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: 'underline',
+                textUnderlineOffset: 2,
+              }}
+            >
+              📩 Click here to open message page
+            </button>
+          )}
+        </div>
+        </div>
+      );
+    }
+    
     return <span style={{ fontSize: 13, lineHeight: 1.5 }}>{msg.content}</span>;
   })();
 
@@ -334,7 +395,7 @@ function MsgBubble({ msg, isMe, otherUserId, onDelete }: {
 }
 
 // ── Main Chatbot component ────────────────────────────────────────────────────
-export function Chatbot() {
+export function Chatbot({ onOpenMessages }: { onOpenMessages?: () => void }) {
   const [isOpen,      setIsOpen]      = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [tab,         setTab]         = useState<'requests' | 'messages' | 'assistant'>('messages');
@@ -953,6 +1014,7 @@ export function Chatbot() {
                               isMe={msg.sender._id === myId}
                               otherUserId={otherUser?._id || ''}
                               onDelete={deleteMessage}   // ✅ pass delete handler
+                              onOpenMessages={onOpenMessages}  // ✅ pass navigation handler
                             />
                           </div>
                         );

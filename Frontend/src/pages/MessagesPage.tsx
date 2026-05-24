@@ -9,55 +9,22 @@ import { Sidebar } from '../components/layout/Sidebar';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-// Hate speech detection - simple keyword-based filter
-// const HATE_SPEECH_PATTERNS = [
-//   /\b(fuck|shit+|bitch|asshole|bastard|damn|hell)\b/gi,
-//   /\b(idiot|stupid|dumb|moron|retard)\b/gi,
-//   // Add more patterns as needed
-// ];
 const HATE_SPEECH_PATTERNS = [
-  // General profanity
   /\b(fuck|shit|bitch|asshole|bastard|damn|hell|crap|piss|dick|cock|pussy|slut|whore|motherfucker|douche|prick|twat)\b/gi,
-
-  // Intelligence insults
   /\b(idiot|stupid|dumb|moron|retard|imbecile|fool|clown|loser|airhead|nitwit|blockhead|dimwit|halfwit)\b/gi,
-
-  // Aggressive insults
   /\b(jerk|scumbag|piece of shit|trash|garbage|filth|vermin|pig|dog|rat|snake|weasel)\b/gi,
-
-  // Bullying / harassment
   /\b(shut up|go away|get lost|nobody likes you|you suck|hate you|kill yourself|kys|drop dead)\b/gi,
-
-  // Derogatory personality terms
   /\b(arrogant|pathetic|worthless|useless|disgusting|annoying|obnoxious|creep|pervert|psycho|freak)\b/gi,
-
-  // Toxic gamer/internet slang
   /\b(noob|trash player|ez|get rekt|owned|skill issue|cry more)\b/gi,
-
-  // Mild slurs / harmful language (non-protected but offensive)
   /\b(simp|incel|beta|alpha loser|snowflake|keyboard warrior)\b/gi,
-
-  // Body shaming
   /\b(fatass|lard|skinny bitch|ugly|hideous|disfigured)\b/gi,
-
-  // Gender-based insults (non-protected phrasing)
   /\b(bitchy|nagging|gold digger|manchild|drama queen)\b/gi,
-
-  // Violence / threats
   /\b(i will kill you|i'll kill you|die bitch|burn in hell|go die)\b/gi,
 ];
+
 function containsHateSpeech(text: string): boolean {
   return HATE_SPEECH_PATTERNS.some(pattern => pattern.test(text));
 }
-
-// Optional: sanitize message by replacing hate speech with asterisks
-// function sanitizeMessage(text: string): string {
-//   let sanitized = text;
-//   HATE_SPEECH_PATTERNS.forEach(pattern => {
-//     sanitized = sanitized.replace(pattern, (match) => '*'.repeat(match.length));
-//   });
-//   return sanitized;
-// }
 
 interface ConnectedUser {
   _id: string;
@@ -118,7 +85,7 @@ function formatDate(iso: string) {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  
+
   if (d.toDateString() === today.toDateString()) {
     return 'Today';
   } else if (d.toDateString() === yesterday.toDateString()) {
@@ -166,13 +133,44 @@ function MessageBubble({
   isMe,
   otherUserId,
   onDelete,
+  onAcceptRequest,
+  onCancelRequest,
+  onCompleteRequest,
+  requestStatus,
+  onOpenMessages,
 }: {
   msg: ChatMessage;
   isMe: boolean;
   otherUserId: string;
   onDelete: (id: string) => void;
+  onAcceptRequest?: () => void;
+  onCancelRequest?: () => void;
+  onCompleteRequest?: () => void;
+  requestStatus?: 'open' | 'pending' | 'fulfilled' | 'closed';
+  onOpenMessages?: () => void;
 }) {
   const [showDelete, setShowDelete] = useState(false);
+
+  // Check if this is a blood request notification message
+  const isBloodRequestNotification = !isMe && msg.type === 'text' && msg.content.includes('BLOOD_REQUEST_NOTIFICATION');
+
+  // Parse blood request info — only extract Hospital name, ignore Request ID line entirely
+  let hospitalName = '';
+  if (isBloodRequestNotification) {
+    const lines = msg.content.split('\n');
+    const hospitalLine = lines.find(l => l.startsWith('Hospital:'));
+    if (hospitalLine) {
+      hospitalName = hospitalLine.replace('Hospital:', '').trim();
+    }
+  }
+
+  // Check if this is a blood request action marker (old system)
+  const isBloodRequestAction = !isMe && msg.type === 'text' && msg.content.startsWith('__BLOOD_REQUEST_ACTION__:');
+
+  // Don't render anything for blood request action markers
+  if (isBloodRequestAction) {
+    return null;
+  }
 
   return (
     <div
@@ -225,13 +223,7 @@ function MessageBubble({
           />
         ) : msg.type === 'audio' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <MicIcon
-              style={{
-                width: 16,
-                height: 16,
-                color: isMe ? '#fff' : '#ef4444',
-              }}
-            />
+            <MicIcon style={{ width: 16, height: 16, color: isMe ? '#fff' : '#ef4444' }} />
             <audio controls src={msg.content} style={{ height: 32, maxWidth: 160 }} />
             {msg.duration && <span style={{ fontSize: 11, opacity: 0.8 }}>{msg.duration}s</span>}
           </div>
@@ -257,8 +249,109 @@ function MessageBubble({
             </div>
           </a>
         ) : (
-          <span style={{ fontSize: 13, lineHeight: 1.5 }}>{msg.content}</span>
+          <>
+            {isBloodRequestNotification && hospitalName ? (
+              <div>
+                <div style={{
+                  background: '#fef3c7',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  marginBottom: 10,
+                  border: '1px solid #fbbf24',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 20 }}>🩸</span>
+                    <strong style={{ fontSize: 14, color: '#92400e' }}>Blood Request Accepted!</strong>
+                  </div>
+                  {/* Clean message: only hospital name, no Request ID */}
+                  <p style={{ fontSize: 12, color: '#92400e', margin: '4px 0 6px', lineHeight: 1.5 }}>
+                    Hospital <strong>{hospitalName}</strong>
+                  </p>
+                </div>
+
+                {(!requestStatus || requestStatus === 'open' || requestStatus === 'pending') &&
+                  onAcceptRequest && onCancelRequest && onCompleteRequest && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {requestStatus !== 'pending' && (
+                        <>
+                          <button
+                            onClick={() => onAcceptRequest()}
+                            style={{
+                              width: '100%', padding: '10px 12px', background: '#22c55e',
+                              color: '#fff', border: 'none', borderRadius: 8, fontSize: 13,
+                              fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.background = '#16a34a'}
+                            onMouseOut={(e) => e.currentTarget.style.background = '#22c55e'}
+                          >
+                            ✓ Yes, I Accept - Put Request on Hold
+                          </button>
+                          <button
+                            onClick={() => onCancelRequest()}
+                            style={{
+                              width: '100%', padding: '10px 12px', background: '#ef4444',
+                              color: '#fff', border: 'none', borderRadius: 8, fontSize: 13,
+                              fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.background = '#dc2626'}
+                            onMouseOut={(e) => e.currentTarget.style.background = '#ef4444'}
+                          >
+                            ✕ No, Cancel Request
+                          </button>
+                        </>
+                      )}
+
+                      {requestStatus === 'pending' && (
+                        <>
+                          <div style={{
+                            padding: '8px 12px', background: '#fef3c7', color: '#92400e',
+                            borderRadius: 6, fontSize: 12, fontWeight: 600, textAlign: 'center',
+                          }}>
+                            ⏸️ Request On Hold - Awaiting Donation
+                          </div>
+                          <button
+                            onClick={() => onCompleteRequest()}
+                            style={{
+                              width: '100%', padding: '10px 12px', background: '#3b82f6',
+                              color: '#fff', border: 'none', borderRadius: 8, fontSize: 13,
+                              fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'}
+                            onMouseOut={(e) => e.currentTarget.style.background = '#3b82f6'}
+                          >
+                            ✓ Complete Blood Donation
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                {requestStatus === 'fulfilled' && (
+                  <div style={{
+                    padding: '10px 12px', background: '#dcfce7', color: '#166534',
+                    borderRadius: 8, fontSize: 13, fontWeight: 600, textAlign: 'center',
+                    border: '1px solid #86efac',
+                  }}>
+                    ✅ Donation Completed - Thank You!
+                  </div>
+                )}
+
+                {requestStatus === 'closed' && (
+                  <div style={{
+                    padding: '10px 12px', background: '#fee2e2', color: '#991b1b',
+                    borderRadius: 8, fontSize: 13, fontWeight: 600, textAlign: 'center',
+                    border: '1px solid #fca5a5',
+                  }}>
+                    ❌ Request Cancelled
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span style={{ fontSize: 13, lineHeight: 1.5 }}>{msg.content}</span>
+            )}
+          </>
         )}
+
         <div
           style={{
             display: 'flex',
@@ -290,6 +383,10 @@ export function MessagesPage() {
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [hateSpeechWarning, setHateSpeechWarning] = useState('');
   const [hasHateSpeech, setHasHateSpeech] = useState(false);
+  const [bloodRequestStatus, setBloodRequestStatus] = useState<'open' | 'pending' | 'fulfilled' | 'closed'>('open');
+  const [showBloodRequestDialog, setShowBloodRequestDialog] = useState(false);
+  const [bloodRequestInfo, setBloodRequestInfo] = useState<{ hospitalName: string; bloodGroup: string; requestId: string } | null>(null);
+  const [lastNotificationId, setLastNotificationId] = useState<string | null>(null);
 
   const [recording, setRecording] = useState(false);
   const [recordSecs, setRecordSecs] = useState(0);
@@ -307,26 +404,23 @@ export function MessagesPage() {
   const me = getMe();
   const myId = me?.id || me?._id || '';
 
-  // Check if user is near bottom of messages
   const checkIfNearBottom = () => {
     const container = messagesContainerRef.current;
     if (!container) return true;
-    
-    const threshold = 150; // pixels from bottom
+    const threshold = 150;
     const isNear = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
     setIsNearBottom(isNear);
   };
 
-  // Only auto-scroll if user is near bottom or if they sent a new message
   useEffect(() => {
     const newMessagesAdded = messages.length > prevMessagesLengthRef.current;
     const lastMessage = messages[messages.length - 1];
     const userSentMessage = lastMessage?.sender._id === myId;
-    
+
     if (newMessagesAdded && (isNearBottom || userSentMessage)) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-    
+
     prevMessagesLengthRef.current = messages.length;
   }, [messages, isNearBottom, myId]);
 
@@ -384,6 +478,53 @@ export function MessagesPage() {
   }, []);
 
   useEffect(() => {
+    const checkBloodRequestNotifications = async () => {
+      const token = localStorage.getItem('lf_token');
+      if (!token) return;
+
+      try {
+        const res = await fetch(`${API}/api/blood-requests/my-notifications`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+
+          if (data.notification) {
+            const notificationId = data.notification.requestId;
+
+            // Only show dialog if this is a NEW notification (different ID)
+            if (notificationId !== lastNotificationId) {
+              setBloodRequestInfo({
+                hospitalName: data.notification.hospitalName,
+                bloodGroup: data.notification.bloodGroup,
+                requestId: data.notification.requestId,
+              });
+              setBloodRequestStatus(data.notification.status || 'open');
+              setShowBloodRequestDialog(true);
+              setLastNotificationId(notificationId);
+            } else {
+              // Same notification - just update status without showing dialog again
+              setBloodRequestStatus(data.notification.status || 'open');
+            }
+          } else {
+            // No notification - clear everything but DON'T reset lastNotificationId
+            // This prevents the same notification from showing again after completion
+            setShowBloodRequestDialog(false);
+            setBloodRequestInfo(null);
+          }
+        }
+      } catch (err) {
+        console.error('[Blood Request Notification] Failed to check notifications:', err);
+      }
+    };
+
+    checkBloodRequestNotifications();
+    const interval = setInterval(checkBloodRequestNotifications, 5000);
+    return () => clearInterval(interval);
+  }, [lastNotificationId]);
+
+  useEffect(() => {
     if (!activeConn) return;
 
     const loadMessages = async () => {
@@ -391,7 +532,10 @@ export function MessagesPage() {
         const r = await fetch(`${API}/api/connections/${activeConn._id}/messages`, {
           headers: authHeaders(),
         });
-        if (r.ok) setMessages(await r.json());
+        if (r.ok) {
+          const msgs = await r.json();
+          setMessages(msgs);
+        }
       } catch {}
     };
 
@@ -400,13 +544,10 @@ export function MessagesPage() {
     return () => clearInterval(interval);
   }, [activeConn]);
 
-  // Check for hate speech in real-time as user types
   const handleInputChange = (value: string) => {
     setInput(value);
-    // Check both the raw value and trimmed value for hate speech
     const detected = containsHateSpeech(value) || containsHateSpeech(value.trim());
     setHasHateSpeech(detected);
-    
     if (detected) {
       setHateSpeechWarning('Your message contains inappropriate language. Please remove it to send.');
     } else {
@@ -416,18 +557,15 @@ export function MessagesPage() {
 
   const sendText = async () => {
     const text = input.trim();
-    
-    // Check if empty or contains hate speech
     if (!text || !activeConn || sending) return;
-    
-    // Double-check for hate speech before sending (check both raw and trimmed)
+
     if (containsHateSpeech(text) || containsHateSpeech(input)) {
       setHateSpeechWarning('Your message contains inappropriate language. Please be respectful.');
       setHasHateSpeech(true);
       return;
     }
-    
-    setInput(''); // Clear input immediately for better UX
+
+    setInput('');
     setHasHateSpeech(false);
     setSending(true);
     try {
@@ -436,9 +574,8 @@ export function MessagesPage() {
         headers: authHeaders(),
         body: JSON.stringify({ type: 'text', content: text }),
       });
-      
+
       if (!r.ok) {
-        // Handle any error response (including hate speech detection)
         if (r.status === 400) {
           const errorData = await r.json();
           setHateSpeechWarning(errorData.message || 'Your message contains inappropriate language. Please be respectful.');
@@ -446,14 +583,12 @@ export function MessagesPage() {
         } else {
           console.error('Failed to send message:', r.status);
         }
-        return; // Don't add message to UI
+        return;
       }
-      
-      // Only add message to UI if backend confirms it was sent
+
       const msg = await r.json();
       setMessages((prev) => [...prev, msg]);
-      
-      // Refresh previews to update conversation order
+
       const conns = await fetchConnections();
       await fetchPreviews(conns);
     } catch (err) {
@@ -546,32 +681,218 @@ export function MessagesPage() {
 
   const deleteEntireChat = async () => {
     if (!activeConn) return;
-    
+
     const confirmed = window.confirm(
       'Are you sure you want to delete this entire conversation? This will only remove it from your view.'
     );
-    
     if (!confirmed) return;
-    
+
     try {
-      // Delete all messages for this user (soft delete on frontend)
       await fetch(`${API}/api/connections/${activeConn._id}/messages/clear`, {
         method: 'DELETE',
         headers: authHeaders(),
       });
-      
-      // Remove from local state
+
       setMessages([]);
       setActiveConn(null);
-      
-      // Refresh connections
+
       const conns = await fetchConnections();
       await fetchPreviews(conns);
-      
+
       setShowChatMenu(false);
     } catch (err) {
       console.error('Failed to delete chat:', err);
       alert('Failed to delete conversation. Please try again.');
+    }
+  };
+
+  const handleAcceptRequest = async () => {
+    if (!activeConn) return;
+
+    try {
+      const token = localStorage.getItem('lf_token');
+      if (!token) {
+        alert('Please login to continue');
+        return;
+      }
+
+      const notificationMsg = messages.find(
+        (m) => m.sender._id !== myId && m.content.includes('BLOOD_REQUEST_NOTIFICATION')
+      );
+      if (!notificationMsg) {
+        alert('Could not find blood request information');
+        return;
+      }
+
+      const requestIdLine = notificationMsg.content.split('\n').find((l) => l.startsWith('Request ID:'));
+      if (!requestIdLine) {
+        alert('Could not find blood request ID');
+        return;
+      }
+
+      const requestId = requestIdLine.replace('Request ID:', '').trim();
+
+      const updateRes = await fetch(`${API}/api/blood-requests/${requestId}/accept-by-donor`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!updateRes.ok) {
+        const errorData = await updateRes.json();
+        throw new Error(errorData.error || 'Failed to accept request');
+      }
+
+      const acceptMessage = '✅ I accept the blood donation request. I will donate blood. Request is now on hold.';
+      await fetch(`${API}/api/connections/${activeConn._id}/messages`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ type: 'text', content: acceptMessage }),
+      });
+
+      setBloodRequestStatus('pending');
+
+      const r = await fetch(`${API}/api/connections/${activeConn._id}/messages`, {
+        headers: authHeaders(),
+      });
+      if (r.ok) {
+        const msgs = await r.json();
+        setMessages(msgs);
+      }
+    } catch (err: any) {
+      console.error('Failed to accept request:', err);
+      alert(err.message || 'Failed to accept request. Please try again.');
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!activeConn) return;
+
+    try {
+      const token = localStorage.getItem('lf_token');
+      if (!token) {
+        alert('Please login to continue');
+        return;
+      }
+
+      const notificationMsg = messages.find(
+        (m) => m.sender._id !== myId && m.content.includes('BLOOD_REQUEST_NOTIFICATION')
+      );
+      if (!notificationMsg) {
+        alert('Could not find blood request information');
+        return;
+      }
+
+      const requestIdLine = notificationMsg.content.split('\n').find((l) => l.startsWith('Request ID:'));
+      if (!requestIdLine) {
+        alert('Could not find blood request ID');
+        return;
+      }
+
+      const requestId = requestIdLine.replace('Request ID:', '').trim();
+
+      const closeRes = await fetch(`${API}/api/blood-requests/${requestId}/close`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!closeRes.ok) {
+        const errorData = await closeRes.json();
+        throw new Error(errorData.error || 'Failed to cancel request');
+      }
+
+      const cancelMessage = '❌ I cannot donate blood at this time. Request cancelled.';
+      await fetch(`${API}/api/connections/${activeConn._id}/messages`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ type: 'text', content: cancelMessage }),
+      });
+
+      setBloodRequestStatus('closed');
+      alert('Request cancelled. The hospital has been notified.');
+
+      const r = await fetch(`${API}/api/connections/${activeConn._id}/messages`, {
+        headers: authHeaders(),
+      });
+      if (r.ok) {
+        const msgs = await r.json();
+        setMessages(msgs);
+      }
+    } catch (err: any) {
+      console.error('Failed to cancel request:', err);
+      alert(err.message || 'Failed to cancel request. Please try again.');
+    }
+  };
+
+  const handleCompleteRequest = async () => {
+    try {
+      const token = localStorage.getItem('lf_token');
+      if (!token) {
+        alert('Please login to continue');
+        return;
+      }
+
+      // Use the requestId from bloodRequestInfo state instead of parsing messages
+      if (!bloodRequestInfo?.requestId) {
+        alert('Could not find blood request information');
+        return;
+      }
+
+      const requestId = bloodRequestInfo.requestId;
+
+      console.log('[Frontend] Calling fulfill endpoint for request:', requestId);
+
+      const fulfillRes = await fetch(`${API}/api/blood-requests/${requestId}/fulfill`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!fulfillRes.ok) {
+        const errorData = await fulfillRes.json();
+        throw new Error(errorData.error || 'Failed to complete request');
+      }
+
+      const fulfillData = await fulfillRes.json();
+      console.log('[Frontend] Fulfill response:', fulfillData);
+
+      // Send completion message if there's an active connection
+      if (activeConn) {
+        const completeMessage = '✅ Blood donation completed successfully. Thank you for the opportunity to help save lives!';
+        await fetch(`${API}/api/connections/${activeConn._id}/messages`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ type: 'text', content: completeMessage }),
+        });
+
+        // Reload messages to show the completion message
+        const r = await fetch(`${API}/api/connections/${activeConn._id}/messages`, {
+          headers: authHeaders(),
+        });
+        if (r.ok) {
+          const msgs = await r.json();
+          setMessages(msgs);
+        }
+      }
+
+      // Update status to fulfilled and close dialog immediately
+      setBloodRequestStatus('fulfilled');
+      setShowBloodRequestDialog(false);
+      setBloodRequestInfo(null);
+      
+      console.log('[Frontend] Dialog closed, status set to fulfilled');
+      
+      alert('✓ Donation marked as complete! Thank you for your contribution.');
+    } catch (err: any) {
+      console.error('Failed to mark as complete:', err);
+      alert(err.message || 'Failed to complete request. Please try again.');
     }
   };
 
@@ -585,16 +906,14 @@ export function MessagesPage() {
     const other = conn.from._id === myId ? conn.to : conn.from;
     return other.name.toLowerCase().includes(searchQuery.toLowerCase());
   });
+  
 
-  // Sort by latest message timestamp
   const sortedConnections = [...filteredConnections].sort((a, b) => {
     const previewA = previews[a._id];
     const previewB = previews[b._id];
-    
     const timeA = previewA?.latest?.createdAt ? new Date(previewA.latest.createdAt).getTime() : 0;
     const timeB = previewB?.latest?.createdAt ? new Date(previewB.latest.createdAt).getTime() : 0;
-    
-    return timeB - timeA; // Most recent first
+    return timeB - timeA;
   });
 
   return (
@@ -643,9 +962,7 @@ export function MessagesPage() {
                 <div className="p-8 text-center">
                   <MessageCircleIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p className="text-sm text-gray-500 font-medium">No conversations yet</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Connect with donors to start messaging
-                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Connect with donors to start messaging</p>
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
@@ -678,9 +995,7 @@ export function MessagesPage() {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1">
-                            <p className="font-semibold text-gray-900 truncate">
-                              {other.name}
-                            </p>
+                            <p className="font-semibold text-gray-900 truncate">{other.name}</p>
                             {latest && (
                               <span className="text-xs text-gray-400 flex-shrink-0">
                                 {formatTime(latest.createdAt)}
@@ -768,7 +1083,7 @@ export function MessagesPage() {
                       {otherUser?.municipality && <span>· {otherUser.municipality}</span>}
                     </div>
                   </div>
-                  
+
                   {/* Chat Menu */}
                   <div className="relative">
                     <button
@@ -778,13 +1093,10 @@ export function MessagesPage() {
                     >
                       <MoreVerticalIcon className="w-5 h-5 text-gray-600" />
                     </button>
-                    
+
                     {showChatMenu && (
                       <>
-                        <div
-                          className="fixed inset-0 z-10"
-                          onClick={() => setShowChatMenu(false)}
-                        />
+                        <div className="fixed inset-0 z-10" onClick={() => setShowChatMenu(false)} />
                         <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
                           <button
                             onClick={deleteEntireChat}
@@ -800,7 +1112,7 @@ export function MessagesPage() {
                 </div>
 
                 {/* Messages */}
-                <div 
+                <div
                   ref={messagesContainerRef}
                   onScroll={checkIfNearBottom}
                   className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0"
@@ -812,7 +1124,8 @@ export function MessagesPage() {
                   ) : (
                     messages.map((msg, index) => {
                       const isMe = msg.sender._id === myId;
-                      const showDateSeparator = index === 0 || !isSameDay(messages[index - 1].createdAt, msg.createdAt);
+                      const showDateSeparator =
+                        index === 0 || !isSameDay(messages[index - 1].createdAt, msg.createdAt);
 
                       return (
                         <div key={msg._id}>
@@ -828,6 +1141,11 @@ export function MessagesPage() {
                             isMe={isMe}
                             otherUserId={otherUser?._id || ''}
                             onDelete={deleteMessage}
+                            onAcceptRequest={handleAcceptRequest}
+                            onCancelRequest={handleCancelRequest}
+                            onCompleteRequest={handleCompleteRequest}
+                            requestStatus={bloodRequestStatus}
+                            onOpenMessages={() => navigate('/messages')}
                           />
                         </div>
                       );
@@ -844,7 +1162,7 @@ export function MessagesPage() {
                       <span>{hateSpeechWarning}</span>
                     </div>
                   )}
-                  
+
                   {recording ? (
                     <div className="flex items-center gap-3 px-3 py-2 bg-red-50 rounded-xl border border-red-200">
                       <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -895,8 +1213,8 @@ export function MessagesPage() {
                         }}
                         placeholder="Type a message…"
                         className={`flex-1 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 ${
-                          hasHateSpeech 
-                            ? 'bg-red-50 border-2 border-red-300 focus:ring-red-200' 
+                          hasHateSpeech
+                            ? 'bg-red-50 border-2 border-red-300 focus:ring-red-200'
                             : 'bg-gray-100 focus:ring-primary/20'
                         }`}
                       />
@@ -904,7 +1222,11 @@ export function MessagesPage() {
                         onClick={sendText}
                         disabled={!input.trim() || sending || hasHateSpeech || containsHateSpeech(input.trim())}
                         className="w-10 h-10 bg-primary text-white rounded-xl flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                        title={hasHateSpeech || containsHateSpeech(input.trim()) ? 'Remove inappropriate language to send' : 'Send message'}
+                        title={
+                          hasHateSpeech || containsHateSpeech(input.trim())
+                            ? 'Remove inappropriate language to send'
+                            : 'Send message'
+                        }
                       >
                         <SendIcon className="w-5 h-5" />
                       </button>
@@ -937,6 +1259,163 @@ export function MessagesPage() {
           </div>
         </div>
       </main>
+
+      {/* Blood Request Dialog */}
+      {showBloodRequestDialog && bloodRequestInfo && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: '20px',
+          }}
+          onClick={() => setShowBloodRequestDialog(false)}
+        >
+          <div
+            style={{
+              background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%',
+              padding: 24, boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <span style={{ fontSize: 32 }}>🩸</span>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', margin: 0 }}>
+                  Blood Request Accepted
+                </h2>
+              </div>
+              <p style={{ fontSize: 14, color: '#6b7280', margin: 0, lineHeight: 1.6 }}>
+                Hospital <strong>{bloodRequestInfo.hospitalName}</strong> has accepted your blood request for{' '}
+                <strong>{bloodRequestInfo.bloodGroup}</strong> blood.
+              </p>
+            </div>
+
+            {bloodRequestStatus === 'open' && (
+              <>
+                <div style={{
+                  background: '#fef3c7', padding: 16, borderRadius: 12, marginBottom: 20,
+                  border: '1px solid #fbbf24',
+                }}>
+                  <p style={{ fontSize: 13, color: '#92400e', margin: 0, lineHeight: 1.6 }}>
+                    Please confirm if you can donate blood. If you accept, your request will be put on
+                    hold until the donation is complete.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <button
+                    onClick={handleAcceptRequest}
+                    style={{
+                      width: '100%', padding: '14px 20px', background: '#22c55e', color: '#fff',
+                      border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = '#16a34a'}
+                    onMouseOut={(e) => e.currentTarget.style.background = '#22c55e'}
+                  >
+                    ✓ Yes, I Accept - Put Request on Hold
+                  </button>
+                  <button
+                    onClick={handleCancelRequest}
+                    style={{
+                      width: '100%', padding: '14px 20px', background: '#ef4444', color: '#fff',
+                      border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = '#dc2626'}
+                    onMouseOut={(e) => e.currentTarget.style.background = '#ef4444'}
+                  >
+                    ✕ No, Cancel Request
+                  </button>
+                </div>
+              </>
+            )}
+
+            {bloodRequestStatus === 'pending' && (
+              <>
+                <div style={{
+                  background: '#fef3c7', padding: 16, borderRadius: 12, marginBottom: 20,
+                  border: '1px solid #fbbf24', textAlign: 'center',
+                }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#92400e', margin: 0 }}>
+                    ⏸️ Request On Hold - Awaiting Donation
+                  </p>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <button
+                    onClick={handleCompleteRequest}
+                    style={{
+                      width: '100%', padding: '14px 20px', background: '#3b82f6', color: '#fff',
+                      border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'}
+                    onMouseOut={(e) => e.currentTarget.style.background = '#3b82f6'}
+                  >
+                    ✓ Complete Blood Donation
+                  </button>
+                  <button
+                    onClick={() => setShowBloodRequestDialog(false)}
+                    style={{
+                      width: '100%', padding: '14px 20px', background: '#f3f4f6', color: '#374151',
+                      border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = '#e5e7eb'}
+                    onMouseOut={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
+
+            {bloodRequestStatus === 'fulfilled' && (
+              <>
+                <div style={{
+                  background: '#dcfce7', padding: 16, borderRadius: 12, marginBottom: 20,
+                  border: '1px solid #22c55e', textAlign: 'center',
+                }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#166534', margin: 0 }}>
+                    ✅ Donation Completed - Thank You!
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowBloodRequestDialog(false)}
+                  style={{
+                    width: '100%', padding: '14px 20px', background: '#22c55e', color: '#fff',
+                    border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.background = '#16a34a'}
+                  onMouseOut={(e) => e.currentTarget.style.background = '#22c55e'}
+                >
+                  Close
+                </button>
+              </>
+            )}
+
+            {bloodRequestStatus === 'closed' && (
+              <>
+                <div style={{
+                  background: '#fee2e2', padding: 16, borderRadius: 12, marginBottom: 20,
+                  border: '1px solid #ef4444', textAlign: 'center',
+                }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#991b1b', margin: 0 }}>
+                    ❌ Request Cancelled
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowBloodRequestDialog(false)}
+                  style={{
+                    width: '100%', padding: '14px 20px', background: '#ef4444', color: '#fff',
+                    border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.background = '#dc2626'}
+                  onMouseOut={(e) => e.currentTarget.style.background = '#ef4444'}
+                >
+                  Close
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

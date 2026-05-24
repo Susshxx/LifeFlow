@@ -187,7 +187,7 @@ export function HomePage() {
           if (topThree.length > 0) {
             setDebugInfo(`Showing ${topThree.length} real camps`);
           } else {
-            setDebugInfo('No upcoming camps in database');
+            setDebugInfo('No Upcoming Camps');
           }
         } else {
           const errorText = await res.text();

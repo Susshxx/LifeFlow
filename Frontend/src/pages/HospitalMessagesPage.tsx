@@ -140,6 +140,11 @@ function MessageBubble({
   onDelete: (id: string) => void;
 }) {
   const [showDelete, setShowDelete] = useState(false);
+  
+  // Check if this is a donor response message
+  const isDonorAcceptance = !isMe && msg.type === 'text' && msg.content.startsWith('✅ I accept the blood donation request');
+  const isDonorCancellation = !isMe && msg.type === 'text' && msg.content.startsWith('❌ I cannot donate blood');
+  const isDonorCompletion = !isMe && msg.type === 'text' && msg.content.startsWith('✅ Blood donation completed successfully');
 
   return (
     <div
@@ -226,6 +231,64 @@ function MessageBubble({
         ) : (
           <span style={{ fontSize: 13, lineHeight: 1.5 }}>{msg.content}</span>
         )}
+        
+        {/* Status Indicators for Donor Responses */}
+        {(isDonorAcceptance || isDonorCancellation || isDonorCompletion) && (
+          <div style={{ 
+            marginTop: 12, 
+            paddingTop: 12, 
+            borderTop: '1px solid rgba(0,0,0,0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 11,
+            fontWeight: 600,
+          }}>
+            {isDonorAcceptance && (
+              <div style={{ 
+                padding: '6px 12px', 
+                background: '#dcfce7', 
+                color: '#166534', 
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <span>✓</span>
+                <span>Donor Accepted - Contact them to arrange donation</span>
+              </div>
+            )}
+            {isDonorCancellation && (
+              <div style={{ 
+                padding: '6px 12px', 
+                background: '#fee2e2', 
+                color: '#991b1b', 
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <span>✕</span>
+                <span>Donor Cancelled - Find another donor</span>
+              </div>
+            )}
+            {isDonorCompletion && (
+              <div style={{ 
+                padding: '6px 12px', 
+                background: '#dbeafe', 
+                color: '#1e40af', 
+                borderRadius: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <span>✓</span>
+                <span>Donation Complete - Update your records</span>
+              </div>
+            )}
+          </div>
+        )}
+        
         <div
           style={{
             display: 'flex',

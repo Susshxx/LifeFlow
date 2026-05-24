@@ -50,8 +50,7 @@ const hospitalNavItems: NavItem[] = [{
 }, {
   href: '/hospital/requests',
   label: 'Blood Requests',
-  icon: <HeartPulseIcon className="w-5 h-5" />,
-  badge: 5
+  icon: <HeartPulseIcon className="w-5 h-5" />
 }, {
   href: '/hospital/donors',
   label: 'Connected Donors',
@@ -82,32 +81,13 @@ const adminNavItems: NavItem[] = [{
   label: 'Dashboard',
   icon: <LayoutDashboardIcon className="w-5 h-5" />
 }, {
-  href: '/admin/users',
-  label: 'User Verification',
-  icon: <UsersIcon className="w-5 h-5" />,
-  badge: 12
-}, {
-  href: '/admin/hospitals',
-  label: 'Hospital Verification',
-  icon: <BuildingIcon className="w-5 h-5" />,
-  badge: 4
-}, {
   href: '/admin/camps',
   label: 'Camp Approvals',
   icon: <CalendarIcon className="w-5 h-5" />,
-  badge: 7
-}, {
-  href: '/admin/notifications',
-  label: 'Notifications',
-  icon: <BellIcon className="w-5 h-5" />
 }, {
   href: '/admin/reports',
   label: 'Reports & Analytics',
   icon: <BarChart3Icon className="w-5 h-5" />
-}, {
-  href: '/admin/roles',
-  label: 'Role Management',
-  icon: <ShieldCheckIcon className="w-5 h-5" />
 }, {
   href: '/admin/settings',
   label: 'Settings',
@@ -128,6 +108,40 @@ export function Sidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const [unreadMessageUsers, setUnreadMessageUsers] = useState(0);
+  const [bloodRequestsCount, setBloodRequestsCount] = useState(0);
+  
+  // Fetch blood requests count (for hospitals)
+  useEffect(() => {
+    if (role !== 'hospital') return;
+    
+    const fetchBloodRequestsCount = async () => {
+      try {
+        const token = localStorage.getItem('lf_token');
+        if (!token) return;
+        
+        const response = await fetch(`${API}/api/blood-requests`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        // Count active requests
+        const activeRequests = data.filter((req: any) => req.isActive === true);
+        setBloodRequestsCount(activeRequests.length);
+      } catch (err) {
+        console.debug('Failed to fetch blood requests count:', err);
+      }
+    };
+    
+    fetchBloodRequestsCount();
+    // Poll every 30 seconds
+    const interval = setInterval(fetchBloodRequestsCount, 30000);
+    return () => clearInterval(interval);
+  }, [role]);
   
   // Fetch unread message count
   useEffect(() => {
@@ -231,10 +245,14 @@ export function Sidebar({
         <nav className="p-4 space-y-1 flex-1 overflow-y-auto" aria-label="Sidebar navigation">
           {navItems.map(item => {
           const isActive = location.pathname === item.href;
-          // Use dynamic unread count for Messages (both user and hospital)
-          const badge = (item.href === '/dashboard/chat' || item.href === '/hospital/chat') 
-            ? unreadMessageUsers 
-            : item.badge;
+          // Use dynamic counts for specific menu items
+          let badge = item.badge;
+          if (item.href === '/dashboard/chat' || item.href === '/hospital/chat') {
+            badge = unreadMessageUsers;
+          } else if (item.href === '/hospital/requests') {
+            badge = bloodRequestsCount;
+          }
+          
           return <Link key={item.href} to={item.href} className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-lg
                   transition-colors duration-200
