@@ -204,7 +204,7 @@ router.get("/google", (req, res) => {
 
 // ── GET /api/auth/google/callback ─────────────────────────────────────────────
 router.get("/google/callback", async (req, res) => {
-  const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+  const FRONTEND_URL = process.env.FRONTEND_URL || "https://lifeflow-uj6d.onrender.com";
   const { code, error, error_description } = req.query;
 
   console.log("\n[Google OAuth] ========== CALLBACK START ==========");
@@ -212,7 +212,7 @@ router.get("/google/callback", async (req, res) => {
   console.log("[Google OAuth] error:", error || "none");
   console.log("[Google OAuth] error_description:", error_description || "none");
   console.log("[Google OAuth] MongoDB state:", mongoose.connection.readyState);
-  console.log('API:', import.meta.env.VITE_API_URL);
+  
 
   const failPage = sendRedirectPage.bind(null, res,
     `${FRONTEND_URL}/login?error=google_failed`, "Sign-in failed…");

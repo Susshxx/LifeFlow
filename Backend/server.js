@@ -213,7 +213,6 @@ app.use(compression());
 // CORS
 app.use(cors({
   origin: [
-    "http://localhost:5173",
     "https://lifeflow-uj6d.onrender.com"
   ],
   credentials: true,
