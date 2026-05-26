@@ -288,9 +288,15 @@ router.get("/google/callback", async (req, res) => {
     console.log("[Google OAuth] ✓ Redirecting to frontend with code");
     console.log("[Google OAuth] ========== CALLBACK END ==========\n");
     
-    return sendRedirectPage(res,
-      `${FRONTEND_URL}/auth/google/callback?code=${tempCode}`,
-      "Signing in…");
+    // return sendRedirectPage(res,
+    //   `${FRONTEND_URL}/auth/google/callback?code=${tempCode}`,
+    //   "Signing in…");
+
+    return sendRedirectPage(
+  res,
+  `${FRONTEND_URL}/?google_success=1`,
+  "Signing in…"
+);
 
   } catch (err) {
     console.error("[Google OAuth] ========== ERROR ==========");
