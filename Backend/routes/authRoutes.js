@@ -292,9 +292,9 @@ router.get("/google/callback", async (req, res) => {
     //   `${FRONTEND_URL}/auth/google/callback?code=${tempCode}`,
     //   "Signing in…");
 
-    return sendRedirectPage(
+return sendRedirectPage(
   res,
-  `${FRONTEND_URL}/?google_success=1`,
+  `${FRONTEND_URL}/?token=${token}`,
   "Signing in…"
 );
 
