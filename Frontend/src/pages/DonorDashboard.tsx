@@ -691,7 +691,37 @@ export function DonorDashboard() {
                 <CardContent>
                   {upcomingCamps.length > 0 ? (
                     <div className="space-y-4">
-                      {upcomingCamps.map(camp => <CampCard key={camp._id || camp.id} {...camp} />)}
+                      {upcomingCamps.map(camp => {
+                        const locationLabel = typeof camp.location === 'object' ? camp.location.label : camp.location;
+                        const organizer = camp.hospitalId?.hospitalName || camp.hospitalId?.name || 'Hospital';
+                        const registered = camp.registeredDonors?.length || 0;
+                        const capacity = camp.expectedDonors || 100;
+                        const date = new Date(camp.startTime).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        });
+                        const time = new Date(camp.startTime).toLocaleTimeString('en-US', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        });
+                        
+                        return (
+                          <CampCard 
+                            key={camp._id || camp.id}
+                            id={camp._id || camp.id}
+                            title={camp.title}
+                            organizer={organizer}
+                            date={date}
+                            time={time}
+                            location={locationLabel}
+                            address={camp.address || locationLabel}
+                            registeredCount={registered}
+                            maxCapacity={capacity}
+                            status="upcoming"
+                          />
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8">
