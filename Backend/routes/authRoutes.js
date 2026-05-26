@@ -95,7 +95,9 @@ function exchangeCodeForTokens(code) {
   return new Promise((resolve, reject) => {
     const CALLBACK_URL =
       process.env.GOOGLE_CALLBACK_URL ||
-      "http://localhost:5000/api/auth/google/callback";
+      // "http://localhost:5000/api/auth/google/callback";
+      "https://lifeflow1.onrender.com/api/auth/google/callback";
+
 
     const body = new URLSearchParams({
       code,
