@@ -80,14 +80,21 @@ function storeTempCode(token, user) {
 router.get("/google/exchange", (req, res) => {
   const { code } = req.query;
   if (!code) return res.status(400).json({ error: "Missing code." });
+
   const entry = tempCodes.get(code);
   if (!entry) return res.status(404).json({ error: "Code not found or already used." });
+
   if (Date.now() > entry.expiresAt) {
     tempCodes.delete(code);
     return res.status(410).json({ error: "Code expired." });
   }
+
+  // Delete AFTER reading, so concurrent requests don't both succeed
+  const { token, user } = entry;
   tempCodes.delete(code);
-  return res.json({ token: entry.token, user: entry.user });
+
+  res.set("Cache-Control", "no-store");
+  return res.json({ token, user });
 });
 
 // ── Google OAuth helpers ──────────────────────────────────────────────────────
@@ -292,11 +299,6 @@ router.get("/google/callback", async (req, res) => {
       `${FRONTEND_URL}/auth/google/callback?code=${tempCode}`,
       "Signing in…");
 
-// return sendRedirectPage(
-//   res,
-//   `${FRONTEND_URL}/?token=${token}`,
-//   "Signing in…"
-// );
 
   } catch (err) {
     console.error("[Google OAuth] ========== ERROR ==========");

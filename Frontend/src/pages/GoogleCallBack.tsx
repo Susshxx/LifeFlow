@@ -79,15 +79,14 @@
 //   );
 // }
 
-
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export function GoogleCallback() {
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [status, setStatus] = useState('Completing sign-in…');
 
   useEffect(() => {
@@ -136,11 +135,11 @@ export function GoogleCallback() {
 
         if (needsProfileCompletion) {
           sessionStorage.setItem('google_pending', JSON.stringify({ token, user }));
-          setTimeout(() => navigate('/signup', { replace: true }), 500);
+          navigate('/signup', { replace: true });
         } else {
           localStorage.setItem('lf_token', token);
           localStorage.setItem('lf_user', JSON.stringify(user));
-          setTimeout(() => navigate('/', { replace: true }), 500);
+          navigate('/', { replace: true });
         }
       } catch (err: any) {
         console.error('Google exchange error:', err.message);
@@ -153,11 +152,19 @@ export function GoogleCallback() {
   }, [location.search, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-gray-600">{status}</p>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{
+          width: 48, height: 48,
+          border: '4px solid #e53e3e',
+          borderTopColor: 'transparent',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+          margin: '0 auto 16px',
+        }} />
+        <p style={{ color: '#718096', fontSize: 16 }}>{status}</p>
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
