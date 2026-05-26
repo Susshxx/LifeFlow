@@ -186,7 +186,8 @@ function sendRedirectPage(res, destination, label = "Redirecting…") {
 router.get("/google", (req, res) => {
   const CALLBACK_URL =
     process.env.GOOGLE_CALLBACK_URL ||
-    "http://localhost:5000/api/auth/google/callback";
+    // "http://localhost:5000/api/auth/google/callback";
+    "https://lifeflow1.onrender.com/api/auth/google/callback";
 
   const params = new URLSearchParams({
     client_id:     process.env.GOOGLE_CLIENT_ID,
