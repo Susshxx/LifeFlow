@@ -137,6 +137,7 @@ export function HomePage() {
 
         // Logged in - fetch real data from backend
         console.log('✅ Token found - fetching real camps data');
+        console.log('API:', import.meta.env.VITE_API_URL);
         console.log('🔑 Token:', token.substring(0, 20) + '...');
         console.log('🌐 API URL:', `${API}/api/blood-camps/approved`);
         setDebugInfo('Fetching real data...');

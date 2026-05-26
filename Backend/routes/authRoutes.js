@@ -188,6 +188,7 @@ router.get("/google", (req, res) => {
     process.env.GOOGLE_CALLBACK_URL ||
     // "http://localhost:5000/api/auth/google/callback";
     "https://lifeflow1.onrender.com/api/auth/google/callback";
+    
 
   const params = new URLSearchParams({
     client_id:     process.env.GOOGLE_CLIENT_ID,
@@ -211,6 +212,7 @@ router.get("/google/callback", async (req, res) => {
   console.log("[Google OAuth] error:", error || "none");
   console.log("[Google OAuth] error_description:", error_description || "none");
   console.log("[Google OAuth] MongoDB state:", mongoose.connection.readyState);
+  console.log('API:', import.meta.env.VITE_API_URL);
 
   const failPage = sendRedirectPage.bind(null, res,
     `${FRONTEND_URL}/login?error=google_failed`, "Sign-in failed…");
