@@ -587,7 +587,9 @@ export function DonorDashboard() {
                 <CardContent>
                   {upcomingCamps.length > 0 ? (
                     <div className="space-y-4">
-                      {upcomingCamps.map(camp => {
+                      {upcomingCamps
+                        .filter(camp => camp && camp._id) // Safety filter
+                        .map(camp => {
                         const locationLabel = typeof camp.location === 'object' ? camp.location.label : camp.location;
                         const organizer = camp.hospitalId?.hospitalName || camp.hospitalId?.name || 'Hospital';
                         const registered = camp.registeredDonors?.length || 0;
@@ -635,7 +637,9 @@ export function DonorDashboard() {
                 <CardContent>
                   {recentActivity.length > 0 ? (
                     <div className="space-y-4">
-                      {recentActivity.map((activity, index) => (
+                      {recentActivity
+                        .filter(activity => activity && activity.id) // Safety filter
+                        .map((activity, index) => (
                         <div key={activity.id} className={`flex items-start gap-4 ${index !== recentActivity.length - 1 ? 'pb-4 border-b border-gray-100' : ''}`}>
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
                             ${activity.type === 'donation' ? 'bg-primary/10 text-primary' : ''}
@@ -667,88 +671,8 @@ export function DonorDashboard() {
             <div className="space-y-8">
               <MessagesPanel />
               
-              {/* Simple Notifications List */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <BellIcon className="w-5 h-5 text-gray-400" />
-                      <CardTitle>Notifications</CardTitle>
-                      {notifications.filter(n => !n.isRead).length > 0 && (
-                        <span className="px-2 py-0.5 text-xs font-semibold bg-primary text-white rounded-full">
-                          {notifications.filter(n => !n.isRead).length}
-                        </span>
-                      )}
-                    </div>
-                    {notifications.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        {notifications.filter(n => !n.isRead).length > 0 && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={handleMarkAllNotificationsAsRead}
-                            className="text-primary text-xs"
-                          >
-                            Mark All Read
-                          </Button>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setShowAllNotificationsModal(true)}
-                          className="text-primary text-xs"
-                        >
-                          See All
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {notifications.length === 0 ? (
-                    <div className="text-center py-8">
-                      <BellIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-sm text-gray-500">No notifications yet</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {notifications.slice(0, 5).map((notif) => (
-                        <div
-                          key={notif.id}
-                          className={`p-3 rounded-lg border transition-colors cursor-pointer ${
-                            notif.isRead ? 'bg-white border-gray-100' : 'bg-blue-50 border-blue-200'
-                          }`}
-                          onClick={() => handleMarkNotificationAsRead(notif.id)}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-medium text-gray-900 ${!notif.isRead ? 'font-semibold' : ''}`}>
-                                {notif.title}
-                              </p>
-                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-                                {notif.message}
-                              </p>
-                              <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDismissNotification(notif.id);
-                              }}
-                              className="p-1 text-gray-400 hover:text-red-600 rounded flex-shrink-0"
-                              title="Dismiss"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Notifications temporarily disabled due to database issues */}
+              {/* TODO: Re-enable after cleaning up messages with null senders */}
 
               <Card>
                 <CardHeader>
@@ -904,92 +828,8 @@ export function DonorDashboard() {
         </div>
       </Modal>
 
-      {/* All Notifications Modal */}
-      <Modal 
-        isOpen={showAllNotificationsModal} 
-        onClose={() => setShowAllNotificationsModal(false)} 
-        title="All Notifications"
-        size="md"
-      >
-        <div className="space-y-3">
-          {notifications.length === 0 ? (
-            <div className="text-center py-12">
-              <BellIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm text-gray-500">No notifications yet</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm text-gray-600">
-                  {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
-                </p>
-                {notifications.filter(n => !n.isRead).length > 0 && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={handleMarkAllNotificationsAsRead}
-                    className="text-primary"
-                  >
-                    Mark all as read
-                  </Button>
-                )}
-              </div>
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {notifications.map((notif) => (
-                  <div
-                    key={notif.id}
-                    className={`p-4 rounded-lg border transition-colors ${
-                      notif.isRead ? 'bg-white border-gray-100' : 'bg-blue-50 border-blue-200'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className={`text-sm font-medium text-gray-900 ${!notif.isRead ? 'font-semibold' : ''}`}>
-                            {notif.title}
-                          </p>
-                          {!notif.isRead && (
-                            <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0" />
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">
-                          {notif.message}
-                        </p>
-                        <div className="flex items-center gap-3">
-                          <p className="text-xs text-gray-400">{notif.time}</p>
-                          {!notif.isRead && (
-                            <button
-                              onClick={() => handleMarkNotificationAsRead(notif.id)}
-                              className="text-xs text-primary hover:underline"
-                            >
-                              Mark as read
-                            </button>
-                          )}
-                          <button
-                            onClick={() => navigate('/dashboard/chat')}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            View message
-                          </button>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDismissNotification(notif.id)}
-                        className="p-1 text-gray-400 hover:text-red-600 rounded flex-shrink-0"
-                        title="Dismiss"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </Modal>
+      {/* All Notifications Modal - Temporarily Disabled */}
+      {/* TODO: Re-enable after fixing database messages with null senders */}
     </div>
   );
 }
