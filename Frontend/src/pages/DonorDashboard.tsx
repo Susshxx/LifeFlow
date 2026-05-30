@@ -240,6 +240,7 @@ export function DonorDashboard() {
                     
                     return isText && hasPrefix && notFromMe && notDismissed;
                   })
+                  .filter((msg: any) => msg && msg.sender && msg.sender._id && msg.sender.name) // Extra safety filter before map
                   .map((msg: any) => {
                     const createdDate = new Date(msg.createdAt);
                     const now = new Date();

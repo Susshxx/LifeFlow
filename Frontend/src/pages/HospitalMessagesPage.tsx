@@ -108,11 +108,12 @@ function formatSize(bytes: number) {
 }
 
 function previewText(msg: ChatMessage, isMe: boolean): string {
+  if (!msg || !msg.sender) return 'Invalid message';
   const prefix = isMe ? 'You: ' : '';
   if (msg.type === 'image') return `${prefix}📷 Image`;
   if (msg.type === 'audio') return `${prefix}🎤 Voice message`;
   if (msg.type === 'file') return `${prefix}📎 ${msg.fileName || 'File'}`;
-  return `${prefix}${msg.content}`;
+  return `${prefix}${msg.content || ''}`;
 }
 
 function ReadReceipt({ readBy, otherUserId }: { readBy: string[]; otherUserId: string }) {
@@ -419,7 +420,14 @@ export function HospitalMessagesPage() {
         const r = await fetch(`${API}/api/connections/${activeConn._id}/messages`, {
           headers: authHeaders(),
         });
-        if (r.ok) setMessages(await r.json());
+        if (r.ok) {
+          const msgs = await r.json();
+          // Filter out messages with null senders before setting state
+          const validMessages = msgs.filter((msg: any) => 
+            msg && msg.sender && msg.sender._id && msg.sender.name
+          );
+          setMessages(validMessages);
+        }
       } catch {}
     };
 
@@ -479,7 +487,10 @@ export function HospitalMessagesPage() {
       
       // Only add message to UI if backend confirms it was sent
       const msg = await r.json();
-      setMessages((prev) => [...prev, msg]);
+      // Validate message before adding to state
+      if (msg && msg.sender && msg.sender._id) {
+        setMessages((prev) => [...prev, msg]);
+      }
       
       // Refresh previews to update conversation order
       const conns = await fetchConnections();
@@ -504,7 +515,10 @@ export function HospitalMessagesPage() {
         });
         if (r.ok) {
           const msg = await r.json();
-          setMessages((prev) => [...prev, msg]);
+          // Validate message before adding to state
+          if (msg && msg.sender && msg.sender._id) {
+            setMessages((prev) => [...prev, msg]);
+          }
         }
       } catch {}
     };
@@ -523,7 +537,12 @@ export function HospitalMessagesPage() {
       const r = await fetch(`${API}/api/connections/${activeConn._id}/messages`, {
         headers: authHeaders(),
       });
-      if (r.ok) setMessages(await r.json());
+      if (r.ok) {
+        const msgs = await r.json();
+        // Filter out messages with null senders
+        const validMessages = msgs.filter((m: any) => m && m.sender && m.sender._id);
+        setMessages(validMessages);
+      }
     }
   };
 
@@ -550,7 +569,10 @@ export function HospitalMessagesPage() {
             });
             if (r.ok) {
               const msg = await r.json();
-              setMessages((prev) => [...prev, msg]);
+              // Validate message before adding to state
+              if (msg && msg.sender && msg.sender._id) {
+                setMessages((prev) => [...prev, msg]);
+              }
             }
           } catch {}
         };
@@ -680,6 +702,9 @@ export function HospitalMessagesPage() {
                     const latest = preview?.latest;
                     const isActive = activeConn?._id === conn._id;
 
+                    // Safety check for latest message
+                    const hasValidLatest = latest && latest.sender && latest.sender._id;
+
                     return (
                       <button
                         key={conn._id}
@@ -705,7 +730,7 @@ export function HospitalMessagesPage() {
                             <p className="font-semibold text-gray-900 truncate">
                               {other.name}
                             </p>
-                            {latest && (
+                            {hasValidLatest && (
                               <span className="text-xs text-gray-400 flex-shrink-0">
                                 {formatTime(latest.createdAt)}
                               </span>
@@ -713,7 +738,7 @@ export function HospitalMessagesPage() {
                           </div>
                           <div className="flex items-center justify-between gap-1 mt-1">
                             <div className="flex-1 min-w-0">
-                              {!latest ? (
+                              {!hasValidLatest ? (
                                 other.bloodGroup ? (
                                   <span className="flex items-center gap-1 text-red-500 text-xs">
                                     <DropletIcon className="w-3 h-3" />
@@ -833,28 +858,30 @@ export function HospitalMessagesPage() {
                       No messages yet. Say hello! 👋
                     </p>
                   ) : (
-                    messages.map((msg, index) => {
-                      const isMe = msg.sender._id === myId;
-                      const showDateSeparator = index === 0 || !isSameDay(messages[index - 1].createdAt, msg.createdAt);
+                    messages
+                      .filter((msg) => msg && msg.sender && msg.sender._id) // Extra safety filter
+                      .map((msg, index) => {
+                        const isMe = msg.sender._id === myId;
+                        const showDateSeparator = index === 0 || !isSameDay(messages[index - 1].createdAt, msg.createdAt);
 
-                      return (
-                        <div key={msg._id}>
-                          {showDateSeparator && (
-                            <div className="flex items-center justify-center my-4">
-                              <div className="px-3 py-1 bg-gray-200 rounded-full text-xs text-gray-600 font-medium">
-                                {formatDate(msg.createdAt)}
+                        return (
+                          <div key={msg._id}>
+                            {showDateSeparator && (
+                              <div className="flex items-center justify-center my-4">
+                                <div className="px-3 py-1 bg-gray-200 rounded-full text-xs text-gray-600 font-medium">
+                                  {formatDate(msg.createdAt)}
+                                </div>
                               </div>
-                            </div>
-                          )}
-                          <MessageBubble
-                            msg={msg}
-                            isMe={isMe}
-                            otherUserId={otherUser?._id || ''}
-                            onDelete={deleteMessage}
-                          />
-                        </div>
-                      );
-                    })
+                            )}
+                            <MessageBubble
+                              msg={msg}
+                              isMe={isMe}
+                              otherUserId={otherUser?._id || ''}
+                              onDelete={deleteMessage}
+                            />
+                          </div>
+                        );
+                      })
                   )}
                   <div ref={messagesEndRef} />
                 </div>
