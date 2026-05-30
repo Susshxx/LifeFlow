@@ -11,7 +11,6 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
-import { MessagesPanel } from '../components/features/MessagesPanel';
 import { CampCard } from '../components/features/CampCard';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -615,11 +614,8 @@ export function DonorDashboard() {
 
             {/* Sidebar */}
             <div className="space-y-8">
-              <MessagesPanel />
+              {/* MessagesPanel removed - use sidebar menu to access messages */}
               
-              {/* Notifications temporarily disabled due to database issues */}
-              {/* TODO: Re-enable after cleaning up messages with null senders */}
-
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
