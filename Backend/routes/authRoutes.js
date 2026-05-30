@@ -47,6 +47,7 @@ function safeUser(user) {
     avatar:            user.avatar            || "",
     documentPhoto:     user.documentPhoto     || "",
     isVerified:        user.isVerified        || false,
+    tokens:            user.tokens            || 0,
     // tempLocation: { lat, lng, label } — used for map pinning
     tempLocation:      user.tempLocation      || null,
   };
