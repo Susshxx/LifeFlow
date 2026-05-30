@@ -2087,42 +2087,6 @@ export function Chatbot({ onOpenMessages }: { onOpenMessages?: () => void }) {
                 </div>
               )}
 
-              {/* ── TAB: Messages — conversation list ── */}
-              {!activeConn && tab === 'messages' && (
-                <div className="flex-1 overflow-y-auto bg-white">
-                  {connections.length === 0 ? (
-                    <div className="text-center mt-12 space-y-2 px-4">
-                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
-                        <MessageCircleIcon className="w-6 h-6 text-gray-400" />
-                      </div>
-                      <p className="text-sm text-gray-500 font-medium">No messages yet</p>
-                      <p className="text-xs text-gray-400">Accept connection requests to start chatting. Find donors on the map and click Connect.</p>
-                    </div>
-                  ) : (
-                    <div className="p-2 space-y-1">
-                      {/* ✅ Sort connections by most recent message */}
-                      {[...connections]
-                        .sort((a, b) => {
-                          const previewA = previews[a._id];
-                          const previewB = previews[b._id];
-                          const timeA = previewA?.latest?.createdAt ? new Date(previewA.latest.createdAt).getTime() : 0;
-                          const timeB = previewB?.latest?.createdAt ? new Date(previewB.latest.createdAt).getTime() : 0;
-                          return timeB - timeA; // Most recent first
-                        })
-                        .map(conn => (
-                          <ConvItem
-                            key={conn._id}
-                            conn={conn}
-                            myId={myId}
-                            preview={previews[conn._id]}   // ✅ pass preview data
-                            active={activeConn?._id === conn._id}
-                            onClick={() => setActiveConn(conn)}
-                          />
-                        ))}
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* ── TAB: Messages — active conversation ── */}
               {activeConn && tab === 'messages' && (
