@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
 import { Chatbot } from './components/features/Chatbot';
@@ -73,9 +74,10 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 export function App() {
   return (
-    <Router>
-      <Layout>
-        <Routes>
+    <ErrorBoundary>
+      <Router>
+        <Layout>
+          <Routes>
           {/* Public Routes */}
           <Route path="/" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
@@ -123,5 +125,6 @@ export function App() {
         </Routes>
       </Layout>
     </Router>
+    </ErrorBoundary>
   );
 }

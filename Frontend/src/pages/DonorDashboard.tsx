@@ -222,7 +222,7 @@ export function DonorDashboard() {
                   .filter((msg: any) => {
                     const isText = msg.type === 'text';
                     const hasPrefix = msg.content && msg.content.startsWith('📢 Notification:');
-                    const notFromMe = msg.sender._id !== storedUser?.id && msg.sender._id !== storedUser?._id;
+                    const notFromMe = msg.sender && msg.sender._id && (msg.sender._id !== storedUser?.id && msg.sender._id !== storedUser?._id);
                     const notDismissed = !dismissedIds.includes(msg._id);
                     
                     console.log('Message check:', {
@@ -263,7 +263,7 @@ export function DonorDashboard() {
                     return {
                       id: msg._id,
                       type: 'info' as const,
-                      title: msg.sender.name || 'Hospital',
+                      title: msg.sender?.name || 'Hospital',
                       message: msg.content.replace('📢 Notification:', '').trim(),
                       time: timeStr,
                       createdAt: msg.createdAt,
