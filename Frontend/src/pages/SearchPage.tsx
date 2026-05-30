@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FilterIcon, MapIcon, ListIcon, AlertTriangleIcon, XIcon,
   SlidersHorizontalIcon, LocateIcon, NavigationIcon, PhoneIcon,
   UserPlusIcon, StarIcon, HeartIcon, ZapIcon, CheckIcon, MailIcon,
-  MessageCircleIcon,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
@@ -26,56 +24,9 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-
-// ── Reverse geocode helper (lazy, single call) ────────────────────────────────
-// Returns a short "Neighbourhood, City" string from coordinates.
-// Only called when a dialog opens — never in bulk.
-async function reverseGeocode(lat: number, lng: number): Promise<string> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
-      { headers: { 'User-Agent': 'LifeFlow Blood Donation App' } }
-    );
-    if (!res.ok) throw new Error('nominatim failed');
-    const data = await res.json();
-    const a = data.address || {};
-    // Build a short, readable address: "Neighbourhood, City"
-    const parts: string[] = [
-      a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.road,
-      a.city || a.town || a.municipality || a.county,
-    ].filter(Boolean) as string[];
-    if (parts.length) return parts.join(', ');
-    // Fallback: first two comma-parts of display_name
-    return data.display_name?.split(',').slice(0, 2).join(',').trim() || '';
-  } catch {
-    return '';
-  }
-}
-
-// ── Smart label for list cards (no API call needed) ───────────────────────────
-// Shows the most useful short string available without hitting any API.
-function smartLocationLabel(
-  tempLocation: { lat?: number; lng?: number; label?: string } | undefined,
-  municipality?: string,
-  district?: string
-): string {
-  if (!tempLocation) return municipality || district || 'Nepal';
-  const { label, lat, lng } = tempLocation;
-  // If user gave a meaningful custom label (not just "Home"), use it
-  if (label && label.trim().toLowerCase() !== 'home' && label.trim().length > 3) {
-    return label.trim();
-  }
-  // Fall back to municipality or district stored in user profile
-  if (municipality) return municipality;
-  if (district) return district;
-  // Last resort: coords
-  if (lat && lng) return `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
-  return 'Nepal';
-}
-
-
-//Icon Factories
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Icon Factories
+// ─────────────────────────────────────────────────────────────────────────────
 function makeDotIcon(color: string, size = 18, pulse = false, label = '') {
   const pulseStyle = pulse
     ? `@keyframes ep{0%,100%{box-shadow:0 0 0 0 ${color}88}70%{box-shadow:0 0 0 10px transparent}}`
@@ -126,7 +77,7 @@ function makeStarIcon(size = 10) {
   });
 }
 
-//Blood request pin — dark orange with light red halo
+// Blood request pin — dark orange with light red halo
 function makeBloodRequestIcon(isEmergency: boolean) {
   const coreColor = isEmergency ? '#B91C1C' : '#C2410C';   // dark red or dark orange
   const haloColor = isEmergency ? '#FCA5A5' : '#FDBA74';   // light red or light orange
@@ -168,42 +119,15 @@ const ICONS = {
   hospital: () => makeDotIcon('#22C55E', 18, false, 'H'),
   request: () => makeBloodRequestIcon(false),
   emergency: () => makeBloodRequestIcon(true),
-  camp: () => makeDotIcon('#8B5CF6', 20, false, '⛺'),
 };
 
-function buildCampPopupHTML(camp: any) {
-  const organizer = camp.hospitalId?.hospitalName || camp.hospitalId?.name || 'Hospital';
-  const locationLabel = typeof camp.location === 'object' ? camp.location.label : camp.location || '';
-  const date = camp.startTime ? new Date(camp.startTime).toLocaleDateString() : 'TBD';
-  const time = camp.startTime
-    ? new Date(camp.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : '';
-  const registered = camp.registeredDonors?.length || 0;
-  const capacity = camp.expectedDonors || 0;
-  const bloodGroups = (camp.bloodGroups || ['All']).join(', ');
-  return `<div style="min-width:230px;max-width:260px;font-family:sans-serif;">
-    <div style="margin-bottom:8px;">
-      <span style="background:#8B5CF6;color:#fff;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;">⛺ Blood Camp</span>
-    </div>
-    <h4 style="font-weight:800;font-size:14px;margin:0 0 6px;color:#1f2937;">${camp.title}</h4>
-    <div style="font-size:11px;color:#4b5563;line-height:1.7;">
-      <div>🏥 ${organizer}</div>
-      <div>📅 ${date} ${time ? '· ' + time : ''}</div>
-      <div>📍 ${locationLabel}</div>
-      <div>👥 ${registered}/${capacity} registered</div>
-      <div>🩸 ${bloodGroups}</div>
-    </div>
-  </div>`;
-}
-
-
-//Types
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 interface MapUser {
   _id: string; name: string; role: 'user' | 'hospital';
   bloodGroup?: string; avatar?: string; isVerified: boolean;
   hospitalName?: string; municipality?: string; district?: string;
-  phone?: string;
   tempLocation: { lat: number; lng: number; label: string };
 }
 
@@ -227,9 +151,9 @@ interface Hospital {
   isVerified: boolean;
 }
 
-
-//Filter options
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Filter options
+// ─────────────────────────────────────────────────────────────────────────────
 const bloodGroupOptions = [
   { value: '', label: 'All Blood Groups' },
   ...'A+,A-,B+,B-,AB+,AB-,O+,O-'.split(',').map(v => ({ value: v, label: v })),
@@ -374,9 +298,9 @@ function buildBloodRequestPopupHTML(req: BloodRequest, isMe: boolean) {
   </div>`;
 }
 
-
-//Blood Request Dialog — mini Leaflet map for custom location
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Blood Request Dialog — mini Leaflet map for custom location
+// ─────────────────────────────────────────────────────────────────────────────
 interface RequestDialogProps {
   isOpen: boolean;
   isEmergency: boolean;
@@ -623,9 +547,9 @@ function BloodRequestDialog({ isOpen, isEmergency, onClose, onSubmit, currentUse
   );
 }
 
-
-//Blood Request Card (for list view)
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Blood Request Card (for list view)
+// ─────────────────────────────────────────────────────────────────────────────
 function BloodRequestCard({ req, isMe, onMessage }: { req: BloodRequest; isMe: boolean; onMessage: (userId: string) => void }) {
   const isEmergency = req.isEmergency;
   const border = isEmergency ? '#FCA5A5' : '#FDBA74';
@@ -673,28 +597,10 @@ function BloodRequestCard({ req, isMe, onMessage }: { req: BloodRequest; isMe: b
   );
 }
 
-
-//SearchPage
-
+// ─────────────────────────────────────────────────────────────────────────────
+// SearchPage
+// ─────────────────────────────────────────────────────────────────────────────
 export function SearchPage() {
-  const routerLocation = useLocation();
-  const navigate = useNavigate();
-  
-  // Redirect hospitals to their dashboard - they shouldn't access search page
-  useEffect(() => {
-    try {
-      const userStr = localStorage.getItem('lf_user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        if (user.role === 'hospital') {
-          navigate('/hospital/dashboard', { replace: true });
-        }
-      }
-    } catch (error) {
-      console.error('Error checking user role:', error);
-    }
-  }, [navigate]);
-
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [showFilters, setShowFilters] = useState(false);
   const [resultType, setResultType] = useState<'all' | 'donors' | 'hospitals' | 'requests'>('all');
@@ -705,38 +611,14 @@ export function SearchPage() {
   const [posMode, setPosMode] = useState<'saved' | 'live'>('saved');
   const [mapUsers, setMapUsers] = useState<MapUser[]>([]);
   const [bloodRequests, setBloodRequests] = useState<BloodRequest[]>([]);
-  const [bloodCamps, setBloodCamps] = useState<any[]>([]);
   const [connStatuses, setConnStatuses] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
   const [myActiveRequest, setMyActiveRequest] = useState<BloodRequest | null>(null);
-  const [selectedDonor, setSelectedDonor] = useState<MapUser | null>(null);
-  const [selectedDonorLastDonation, setSelectedDonorLastDonation] = useState<string | null>(null);
-  const [selectedDonorAddress, setSelectedDonorAddress] = useState<string | null>(null);
-  const [donorAddresses, setDonorAddresses] = useState<Record<string, string>>({});
-  const [selectedHospital, setSelectedHospital] = useState<MapUser | null>(null);
-  const [selectedHospitalAddress, setSelectedHospitalAddress] = useState<string | null>(null);
-  const [hospitalAddresses, setHospitalAddresses] = useState<Record<string, string>>({});
-  const [selectedHospitalInventory, setSelectedHospitalInventory] = useState<any | null>(null);
-  const [loadingInventory, setLoadingInventory] = useState(false);
-  const [selectedCamp, setSelectedCamp] = useState<any | null>(null);
-  const [showCampRegistration, setShowCampRegistration] = useState(false);
-  const [campRegForm, setCampRegForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    age: '',
-    weight: '',
-    lastDonationMonth: '',
-    lastDonationYear: '',
-  });
 
   const [filters, setFilters] = useState({
-    bloodGroup: '', 
-    distance: '', 
-    availableOnly: true,
-    contentType: '', // 'users', 'hospitals', 'blood-requests', 'emergency-requests', 'blood-camps'
+    bloodGroup: '', province: '', district: '', distance: '', availableOnly: true,
   });
 
   const mapRef = useRef<HTMLDivElement>(null);
@@ -746,7 +628,6 @@ export function SearchPage() {
   const liveCircleRef = useRef<L.Circle | null>(null);
   const userMarkersRef = useRef<L.Marker[]>([]);
   const requestMarkersRef = useRef<L.Marker[]>([]);
-  const campMarkersRef = useRef<L.Marker[]>([]);
   // Track which mode the map is currently centred on — avoids re-centre fights
   const mapCentredMode = useRef<'saved' | 'live' | null>(null);
 
@@ -760,50 +641,7 @@ export function SearchPage() {
 
   const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 1000);
-  };
-
-  // Calculate distance between two coordinates using Haversine formula
-  const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-    const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  const getDistanceText = (targetLat: number, targetLng: number): string => {
-    const userLoc = refPos;
-    if (!userLoc) return '';
-    const distance = calculateDistance(userLoc.lat, userLoc.lng, targetLat, targetLng);
-    return `${distance.toFixed(1)} km`;
-  };
-
-  const handleCampRegister = (camp: any) => {
-    if (!me) {
-      showToast('Please login to register for blood camps', 'error');
-      return;
-    }
-    if (me.role === 'hospital') {
-      showToast('Hospitals cannot register for blood camps', 'error');
-      return;
-    }
-    // Auto-fill form with user data
-    setCampRegForm({
-      fullName: me.name || '',
-      email: me.email || '',
-      phone: me.phone || '',
-      age: '',
-      weight: '',
-      lastDonationMonth: '',
-      lastDonationYear: '',
-    });
-    setSelectedCamp(camp);
-    setShowCampRegistration(true);
+    setTimeout(() => setToast(null), 4000);
   };
 
   // ── Fetch map users ─────────────────────────────────────────────────────
@@ -816,36 +654,6 @@ export function SearchPage() {
       .catch(() => { });
   }, []);
 
-  // ── Fetch approved blood camps ──────────────────────────────────────────
-  useEffect(() => {
-    const token = localStorage.getItem('lf_token');
-    if (!token) return;
-    const fetchCamps = () => {
-      fetch(`${API}/api/blood-camps`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : [])
-        .then((data: any[]) => {
-          // Filter out completed camps for users - only show approved and active camps
-          const now = new Date();
-          const activeCamps = data.filter((c: any) => {
-            if (c.status !== 'approved') return false;
-            
-            // Calculate end time
-            const startTime = new Date(c.startTime);
-            const endTime = new Date(startTime);
-            endTime.setHours(endTime.getHours() + (c.duration || 0));
-            
-            // Only show camps that haven't ended yet
-            return now <= endTime;
-          });
-          setBloodCamps(activeCamps);
-        })
-        .catch(() => {});
-    };
-    fetchCamps();
-    const interval = setInterval(fetchCamps, 30_000);
-    return () => clearInterval(interval);
-  }, []);
-
   // ── Fetch blood requests ────────────────────────────────────────────────
   const fetchBloodRequests = useCallback(async () => {
     const token = localStorage.getItem('lf_token');
@@ -855,10 +663,6 @@ export function SearchPage() {
       if (!res.ok) return;
       const data: BloodRequest[] = await res.json();
       setBloodRequests(data);
-      // Broadcast emergency requests so DonorDashboard can read them
-      const emergencies = data.filter(r => r.isEmergency);
-      localStorage.setItem('lf_emergency_requests', JSON.stringify(emergencies));
-      window.dispatchEvent(new Event('lf_emergency_updated'));
       const mine = data.find(r => {
         const uid = typeof r.userId === 'object' ? (r.userId as any)._id : r.userId;
         return uid === myId;
@@ -867,11 +671,7 @@ export function SearchPage() {
     } catch { }
   }, [myId]);
 
-  useEffect(() => {
-    fetchBloodRequests();
-    const interval = setInterval(fetchBloodRequests, 30_000);
-    return () => clearInterval(interval);
-  }, [fetchBloodRequests]);
+  useEffect(() => { fetchBloodRequests(); }, [fetchBloodRequests]);
 
   // ── Fetch connection statuses ──────────────────────────────────────────
   useEffect(() => {
@@ -890,174 +690,6 @@ export function SearchPage() {
       results.forEach(({ userId, status }) => { map[userId] = status; });
       setConnStatuses(map);
     });
-  }, [mapUsers, myId]);
-
-  // ── Fetch hospital inventory when selected ────────────────────────────
-  useEffect(() => {
-    if (!selectedHospital) {
-      setSelectedHospitalInventory(null);
-      return;
-    }
-
-    const fetchHospitalInventory = async () => {
-      const token = localStorage.getItem('lf_token');
-      if (!token) return;
-
-      setLoadingInventory(true);
-      try {
-        const res = await fetch(`${API}/api/blood-inventory/${selectedHospital._id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          setSelectedHospitalInventory(data);
-        } else {
-          console.error('Failed to fetch hospital inventory');
-          setSelectedHospitalInventory(null);
-        }
-      } catch (err) {
-        console.error('Error fetching hospital inventory:', err);
-        setSelectedHospitalInventory(null);
-      } finally {
-        setLoadingInventory(false);
-      }
-    };
-
-    fetchHospitalInventory();
-  }, [selectedHospital]);
-
-  // ── Fetch donor's last donation when selected ─────────────────────────
-  useEffect(() => {
-    if (!selectedDonor) {
-      setSelectedDonorLastDonation(null);
-      return;
-    }
-
-    const fetchLastDonation = async () => {
-      const token = localStorage.getItem('lf_token');
-      if (!token) {
-        setSelectedDonorLastDonation('Not available');
-        return;
-      }
-
-      try {
-        const res = await fetch(`${API}/api/auth/users/${selectedDonor._id}/last-donation`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          
-          if (data.lastDonation) {
-            const donationDate = new Date(data.lastDonation);
-            const now = new Date();
-            const diffTime = Math.abs(now.getTime() - donationDate.getTime());
-            const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30));
-            
-            if (diffMonths === 0) {
-              setSelectedDonorLastDonation('Less than a month ago');
-            } else if (diffMonths === 1) {
-              setSelectedDonorLastDonation('1 month ago');
-            } else {
-              setSelectedDonorLastDonation(`${diffMonths} months ago`);
-            }
-          } else {
-            setSelectedDonorLastDonation('No donation history');
-          }
-        } else {
-          setSelectedDonorLastDonation('Not available');
-        }
-      } catch (err) {
-        setSelectedDonorLastDonation('Not available');
-      }
-    };
-
-    fetchLastDonation();
-  }, [selectedDonor]);
-
-  // ── FIXED: Lazy reverse geocode for donor dialog only ─────────────────
-  // Fires ONE request when a donor card is clicked, not for all cards.
-  useEffect(() => {
-    if (!selectedDonor) { setSelectedDonorAddress(null); return; }
-
-    const { lat, lng, label } = selectedDonor.tempLocation || {} as any;
-    if (!lat || !lng) {
-      setSelectedDonorAddress(
-        selectedDonor.municipality || selectedDonor.district || 'Location not set'
-      );
-      return;
-    }
-
-    setSelectedDonorAddress('Loading…');
-    reverseGeocode(lat, lng).then(addr => {
-      setSelectedDonorAddress(
-        addr ||
-        (label && label.trim().toLowerCase() !== 'home' && label.trim().length > 3 ? label : null) ||
-        selectedDonor.municipality ||
-        selectedDonor.district ||
-        'Location not available'
-      );
-    });
-  }, [selectedDonor]);
-
-  // ── FIXED: Lazy reverse geocode for hospital dialog only ──────────────
-  // Fires ONE request when a hospital card is clicked, not for all cards.
-  useEffect(() => {
-    if (!selectedHospital) { setSelectedHospitalAddress(null); return; }
-
-    const { lat, lng, label } = selectedHospital.tempLocation || {} as any;
-    if (!lat || !lng) {
-      setSelectedHospitalAddress(
-        selectedHospital.municipality || selectedHospital.district || 'Location not set'
-      );
-      return;
-    }
-
-    setSelectedHospitalAddress('Loading…');
-    reverseGeocode(lat, lng).then(addr => {
-      setSelectedHospitalAddress(
-        addr ||
-        (label && label.trim().toLowerCase() !== 'home' && label.trim().length > 3 ? label : null) ||
-        selectedHospital.municipality ||
-        selectedHospital.district ||
-        'Location not set'
-      );
-    });
-  }, [selectedHospital]);
-
-  // ── Progressively fetch addresses for all donors and hospitals ────────
-  useEffect(() => {
-    const fetchAddresses = async () => {
-      const donors = mapUsers.filter(u => u.role === 'user' && u._id !== myId);
-      const hospitals = mapUsers.filter(u => u.role === 'hospital');
-      
-      // Fetch addresses one by one with delay to avoid rate limiting
-      for (const user of [...donors, ...hospitals]) {
-        if (!user.tempLocation?.lat || !user.tempLocation?.lng) continue;
-        
-        // Skip if already fetched
-        if (user.role === 'user' && donorAddresses[user._id]) continue;
-        if (user.role === 'hospital' && hospitalAddresses[user._id]) continue;
-        
-        const address = await reverseGeocode(user.tempLocation.lat, user.tempLocation.lng);
-        
-        if (address) {
-          if (user.role === 'user') {
-            setDonorAddresses(prev => ({ ...prev, [user._id]: address }));
-          } else {
-            setHospitalAddresses(prev => ({ ...prev, [user._id]: address }));
-          }
-        }
-        
-        // Wait 1 second between requests to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-    };
-    
-    if (mapUsers.length > 0) {
-      fetchAddresses();
-    }
   }, [mapUsers, myId]);
 
   // ── Event listeners ────────────────────────────────────────────────────
@@ -1090,6 +722,7 @@ export function SearchPage() {
   useEffect(() => {
     const handler = () => {
       // Force re-read from localStorage — React will re-render naturally via state
+      // The savedLoc variable is re-derived from localStorage on every render
     };
     window.addEventListener('lf_user_updated', handler);
     return () => window.removeEventListener('lf_user_updated', handler);
@@ -1188,42 +821,6 @@ export function SearchPage() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Pan to location from URL params (e.g. from dashboard "Respond Now") ──
-  useEffect(() => {
-    const params = new URLSearchParams(routerLocation.search);
-    const lat = parseFloat(params.get('lat') || '');
-    const lng = parseFloat(params.get('lng') || '');
-    if (!isNaN(lat) && !isNaN(lng)) {
-      // Wait for map to be ready
-      const tryPan = () => {
-        const map = mapInstanceRef.current;
-        if (map) {
-          map.setView([lat, lng], 16, { animate: true });
-          // Add a temporary highlight marker
-          const pulse = L.divIcon({
-            className: '',
-            html: `<div style="width:24px;height:24px;border-radius:50%;background:#B91C1C;border:3px solid #fff;box-shadow:0 0 0 6px #FCA5A566;animation:ep 1s infinite"></div>`,
-            iconSize: [24, 24], iconAnchor: [12, 12],
-          });
-          const m = L.marker([lat, lng], { icon: pulse, zIndexOffset: 9999 }).addTo(map);
-          setTimeout(() => map.removeLayer(m), 8000);
-        } else {
-          setTimeout(tryPan, 300);
-        }
-      };
-      setTimeout(tryPan, 400);
-    }
-  }, [routerLocation.search]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Fix map size when switching to map view ───────────────────────────
-  useEffect(() => {
-    if (viewMode === 'map' && mapInstanceRef.current) {
-      setTimeout(() => {
-        mapInstanceRef.current?.invalidateSize();
-      }, 100);
-    }
-  }, [viewMode]);
-
   // ── Re-render user pins ───────────────────────────────────────────────
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -1236,17 +833,9 @@ export function SearchPage() {
     mapUsers.forEach(u => {
       if (!u.tempLocation?.lat) return;
       if (u._id === myId) return;
-      
-      // Apply contentType filter
-      if (filters.contentType === 'users' && u.role !== 'user') return;
-      if (filters.contentType === 'hospitals' && u.role !== 'hospital') return;
-      if (filters.contentType === 'blood-requests' || filters.contentType === 'emergency-requests' || filters.contentType === 'blood-camps') return;
-      
-      // Legacy resultType filter (for backward compatibility)
       if (resultType === 'donors' && u.role !== 'user') return;
       if (resultType === 'hospitals' && u.role !== 'hospital') return;
-      if (resultType === 'requests') return;
-      
+      if (resultType === 'requests') return; // hide normal users when showing requests tab
       if (distFilter && refPos) {
         if (distKm(refPos.lat, refPos.lng, u.tempLocation.lat, u.tempLocation.lng) > distFilter) return;
       }
@@ -1256,10 +845,6 @@ export function SearchPage() {
       const status = connStatuses[u._id] || 'none';
       const marker = L.marker([u.tempLocation.lat, u.tempLocation.lng], { icon }).addTo(map);
       marker.bindPopup(buildUserPopupHTML(u, false, status), { maxWidth: 260 });
-      // Show blood group on hover for donors, click to interact
-      if (u.role === 'user' && u.bloodGroup) {
-        marker.on('mouseover', () => marker.openPopup());
-      }
       userMarkersRef.current.push(marker);
     });
   }, [mapUsers, resultType, filters, refPos, myId, connStatuses]); // eslint-disable-line
@@ -1271,18 +856,10 @@ export function SearchPage() {
     requestMarkersRef.current.forEach(m => map.removeLayer(m));
     requestMarkersRef.current = [];
 
-    // Hide requests if showing only users or hospitals
-    if (filters.contentType === 'users' || filters.contentType === 'hospitals') return;
     if (resultType === 'donors' || resultType === 'hospitals') return;
 
     bloodRequests.forEach(req => {
       if (!req.location?.lat) return;
-      
-      // Apply contentType filter for requests
-      if (filters.contentType === 'blood-requests' && req.isEmergency) return;
-      if (filters.contentType === 'emergency-requests' && !req.isEmergency) return;
-      if (filters.contentType === 'blood-camps') return;
-      
       const uid = typeof req.userId === 'object' ? (req.userId as any)._id : req.userId;
       const isMe = uid === myId;
       const icon = req.isEmergency ? ICONS.emergency() : ICONS.request();
@@ -1290,37 +867,10 @@ export function SearchPage() {
       marker.bindPopup(buildBloodRequestPopupHTML(req, isMe), { maxWidth: 270 });
       requestMarkersRef.current.push(marker);
     });
-  }, [bloodRequests, resultType, myId, filters.contentType]);
-
-  // ── Re-render blood camp pins ─────────────────────────────────────────
-  useEffect(() => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-    campMarkersRef.current.forEach(m => map.removeLayer(m));
-    campMarkersRef.current = [];
-
-    // Only show camps when not explicitly hiding them
-    if (filters.contentType && filters.contentType !== 'blood-camps') return;
-    if (resultType === 'donors' || resultType === 'hospitals' || resultType === 'requests') return;
-
-    bloodCamps.forEach(camp => {
-      const loc = typeof camp.location === 'object' ? camp.location : null;
-      if (!loc?.lat || !loc?.lng) return;
-
-      try {
-        const marker = L.marker([loc.lat, loc.lng], { icon: ICONS.camp(), zIndexOffset: 800 }).addTo(map);
-        marker.bindPopup(buildCampPopupHTML(camp), { maxWidth: 280 });
-        // Open on hover
-        marker.on('mouseover', () => marker.openPopup());
-        marker.on('mouseout', () => marker.closePopup());
-        campMarkersRef.current.push(marker);
-      } catch (e) {
-        console.error('Error adding camp marker:', e);
-      }
-    });
-  }, [bloodCamps, resultType, filters.contentType]);
+  }, [bloodRequests, resultType, myId]);
 
   // ── Pan map ONLY when user explicitly changes posMode ─────────────────
+  // This is separated from the GPS callback so the two don't fight each other.
   const handleSetPosMode = useCallback((mode: 'saved' | 'live') => {
     setPosMode(mode);
     const map = mapInstanceRef.current;
@@ -1370,13 +920,17 @@ export function SearchPage() {
   };
 
   // ── Notify others of emergency (poll-based simulation) ───────────────
+  // In a real app this would be a WebSocket / push notification server.
+  // We trigger a browser Notification for other logged-in tabs.
   useEffect(() => {
     const emergencies = bloodRequests.filter(r => r.isEmergency);
     if (!emergencies.length) return;
+    // Only notify if not your own request
     emergencies.forEach(req => {
       const uid = typeof req.userId === 'object' ? (req.userId as any)._id : req.userId;
       if (uid === myId) return;
       if ('Notification' in window && Notification.permission === 'granted') {
+        // Only fire once per session per request using sessionStorage
         const key = `notified_${req._id}`;
         if (!sessionStorage.getItem(key)) {
           sessionStorage.setItem(key, '1');
@@ -1404,7 +958,7 @@ export function SearchPage() {
   const handleFilterChange = (key: string, value: string | boolean) =>
     setFilters(prev => ({ ...prev, [key]: value }));
   const clearFilters = () =>
-    setFilters({ bloodGroup: '', distance: '', availableOnly: true, contentType: '' });
+    setFilters({ bloodGroup: '', province: '', district: '', distance: '', availableOnly: true });
   const activeFilterCount = Object.values(filters).filter(v => v && v !== true).length;
 
   const activeRequests = bloodRequests.filter(r => !r.isEmergency);
@@ -1517,24 +1071,8 @@ export function SearchPage() {
 
               <div className="space-y-4">
                 <Select label="Blood Group" options={bloodGroupOptions} value={filters.bloodGroup} onChange={e => handleFilterChange('bloodGroup', e.target.value)} />
-                
-                {/* Content Type Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Filter By Type</label>
-                  <Select 
-                    options={[
-                      { value: '', label: 'All Content' },
-                      { value: 'users', label: 'Users' },
-                      { value: 'hospitals', label: 'Hospitals' },
-                      { value: 'blood-requests', label: 'Blood Requests' },
-                      { value: 'emergency-requests', label: 'Emergency Requests' },
-                      { value: 'blood-camps', label: 'Blood Camps' },
-                    ]} 
-                    value={filters.contentType} 
-                    onChange={e => handleFilterChange('contentType', e.target.value)} 
-                  />
-                </div>
-                
+                <Select label="Province" options={provinceOptions} value={filters.province} onChange={e => handleFilterChange('province', e.target.value)} />
+                <Select label="District" options={districtOptions} value={filters.district} onChange={e => handleFilterChange('district', e.target.value)} />
                 <Select label="Distance" options={distanceOptions} value={filters.distance} onChange={e => handleFilterChange('distance', e.target.value)} />
                 <div className="flex items-center gap-3">
                   <input type="checkbox" id="avail" checked={filters.availableOnly}
@@ -1625,11 +1163,10 @@ export function SearchPage() {
               <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
                 <p className="text-xs font-medium text-gray-500 mb-2">Map Legend</p>
                 {[
-                  { icon: '⭐', label: 'Your saved location' },
+                  { icon: '⭐', label: 'Your saved location', color: null },
                   { dot: '#EAB308', label: 'Your live GPS', pulse: true },
-                  { dot: '#3B82F6', label: 'Blood donor (hover for blood group)', pulse: false },
+                  { dot: '#3B82F6', label: 'Blood donor', pulse: false },
                   { dot: '#22C55E', label: 'Hospital', pulse: false },
-                  { dot: '#8B5CF6', label: 'Blood donation camp (hover for details)', pulse: false },
                   { dot: '#C2410C', label: 'Blood request', pulse: false, halo: '#FDBA74' },
                   { dot: '#B91C1C', label: 'Emergency request', pulse: true, halo: '#FCA5A5' },
                 ].map(({ icon, dot, label, pulse, halo }: any) => (
@@ -1656,7 +1193,7 @@ export function SearchPage() {
           <main className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-gray-600">
-                Showing <span className="font-semibold">{mapUsers.length + bloodRequests.length}</span> results
+                Showing <span className="font-semibold">{mapUsers.length + bloodRequests.length || sampleDonors.length + sampleHospitals.length}</span> results
               </p>
               <Select options={[
                 { value: 'distance', label: 'Nearest First' },
@@ -1665,23 +1202,16 @@ export function SearchPage() {
               ]} value="distance" onChange={() => { }} size="sm" className="w-40" />
             </div>
 
-            {/* Map Container - Always rendered but hidden when in list view */}
-            <div 
-              className="rounded-xl overflow-hidden shadow-lg mb-6" 
-              style={{ 
-                height: 520, 
-                position: 'relative', 
-                zIndex: 0,
-                display: viewMode === 'map' ? 'block' : 'none'
-              }}
-            >
-              {locating && (
-                <div style={{ position: 'absolute', inset: 0, zIndex: 400, background: 'rgba(255,255,255,0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, backdropFilter: 'blur(2px)' }}>
-                  <NavigationIcon className="w-8 h-8 text-yellow-500 animate-spin" />
-                  <p style={{ fontWeight: 600, color: '#EAB308', fontSize: 14 }}>Getting your precise location…</p>
-                </div>
-              )}
-              <div ref={mapRef} style={{ height: '100%', width: '100%' }} />
+            {/* Map */}
+            {viewMode === 'map' && (
+              <div className="rounded-xl overflow-hidden shadow-lg mb-6" style={{ height: 520, position: 'relative', zIndex: 0 }}>
+                {locating && (
+                  <div style={{ position: 'absolute', inset: 0, zIndex: 400, background: 'rgba(255,255,255,0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, backdropFilter: 'blur(2px)' }}>
+                    <NavigationIcon className="w-8 h-8 text-yellow-500 animate-spin" />
+                    <p style={{ fontWeight: 600, color: '#EAB308', fontSize: 14 }}>Getting your precise location…</p>
+                  </div>
+                )}
+                <div ref={mapRef} style={{ height: '100%', width: '100%' }} />
 
                 {/* Floating location mode toggle */}
                 <div style={{
@@ -1716,106 +1246,13 @@ export function SearchPage() {
                   <LocateIcon style={{ width: 14, height: 14 }} /> Re-centre
                 </button>
               </div>
-
+            )}
 
             {/* List sections */}
             <div className="space-y-6">
 
-              {/* ── Blood Camps section ──────────────────────────────── */}
-              {(resultType === 'all') && bloodCamps.length > 0 && 
-               (!filters.contentType || filters.contentType === 'blood-camps') && (
-                <section>
-                  <h2 className="text-lg font-heading font-semibold mb-3 flex items-center gap-2" style={{ color: '#7C3AED' }}>
-                    <div style={{ width: 13, height: 13, borderRadius: '50%', background: '#8B5CF6', boxShadow: '0 0 0 4px #8B5CF622' }} />
-                    Upcoming Blood Camps ({bloodCamps.length})
-                  </h2>
-                  <div className="grid md:grid-cols-2 gap-4 mb-6">
-                    {bloodCamps.map(camp => {
-                      const loc = typeof camp.location === 'object' ? camp.location : null;
-                      const organizer = camp.hospitalId?.hospitalName || camp.hospitalId?.name || 'Hospital';
-                      const dateStr = camp.startTime ? new Date(camp.startTime).toLocaleDateString() : 'TBD';
-                      const timeStr = camp.startTime
-                        ? new Date(camp.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        : '';
-                      const registered = camp.registeredDonors?.length || 0;
-                      const capacity = camp.expectedDonors || 0;
-                      const pct = capacity ? Math.round((registered / capacity) * 100) : 0;
-                      const bgs: string[] = camp.bloodGroups || ['All'];
-                      const isRegistered = me && camp.registeredDonors?.some((d: any) => {
-                        const donorUserId = d.userId?._id || d.userId;
-                        return donorUserId === (me.id || me._id);
-                      });
-                      const isFull = registered >= capacity;
-                      
-                      return (
-                        <div key={camp._id} style={{
-                          background: '#fff', border: '1.5px solid #DDD6FE', borderRadius: 14,
-                          padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
-                          boxShadow: '0 2px 12px rgba(139,92,246,0.08)',
-                          position: 'relative',
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ background: '#EDE9FE', color: '#7C3AED', padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700 }}>⛺ Upcoming Camp</span>
-                            <span style={{ fontSize: 12, color: '#6b7280' }}>{dateStr}{timeStr ? ' · ' + timeStr : ''}</span>
-                          </div>
-                          <p style={{ fontWeight: 800, fontSize: 15, margin: 0, color: '#1f2937' }}>{camp.title}</p>
-                          <div style={{ fontSize: 12, color: '#4b5563', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <div>🏥 {organizer}</div>
-                            {loc?.label && <div>📍 {loc.label}</div>}
-                            <div>⏱ {camp.duration} hours</div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                            {bgs.map((bg: string) => (
-                              <span key={bg} style={{ background: '#FEE2E2', color: '#B91C1C', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>🩸 {bg}</span>
-                            ))}
-                          </div>
-                          <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
-                              <span>Registration Progress</span>
-                              <span>{registered}/{capacity} · {pct}%</span>
-                            </div>
-                            <div style={{ height: 6, background: '#EDE9FE', borderRadius: 4, overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${pct}%`, background: '#8B5CF6', borderRadius: 4, transition: 'width 0.3s' }} />
-                            </div>
-                          </div>
-                          
-                          {me && me.role !== 'hospital' && (
-                            <button
-                              onClick={() => handleCampRegister(camp)}
-                              disabled={isRegistered || isFull}
-                              style={{
-                                marginTop: 8,
-                                padding: '10px 16px',
-                                background: isRegistered ? '#9CA3AF' : isFull ? '#EF4444' : '#8B5CF6',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: 8,
-                                fontWeight: 600,
-                                fontSize: 14,
-                                cursor: (isRegistered || isFull) ? 'not-allowed' : 'pointer',
-                                transition: 'all 0.2s',
-                                opacity: (isRegistered || isFull) ? 0.7 : 1,
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!isRegistered && !isFull) e.currentTarget.style.background = '#7C3AED';
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!isRegistered && !isFull) e.currentTarget.style.background = '#8B5CF6';
-                              }}
-                            >
-                              {isRegistered ? '✓ Registered' : isFull ? '🚫 Capacity Full' : 'Register Now'}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
               {/* ── Blood Requests section ───────────────────────────── */}
-              {(resultType === 'all' || resultType === 'requests') && bloodRequests.length > 0 && 
-               (!filters.contentType || filters.contentType === 'blood-requests' || filters.contentType === 'emergency-requests') && (
+              {(resultType === 'all' || resultType === 'requests') && bloodRequests.length > 0 && (
                 <section>
                   {emergencyRequests.length > 0 && (
                     <>
@@ -1857,168 +1294,39 @@ export function SearchPage() {
               {/* ── Donors ────────────────────────────────────────────── */}
               {(resultType === 'all' || resultType === 'donors') && (
                 <section>
-                  {(() => {
-                    // Apply all filters to donors
-                    let donors = mapUsers.filter(u => u.role === 'user' && u._id !== myId);
-                    
-                    // Blood group filter
-                    if (filters.bloodGroup) {
-                      donors = donors.filter(d => d.bloodGroup === filters.bloodGroup);
-                    }
-                    
-                    // Distance filter
-                    if (filters.distance && refPos) {
-                      const maxDist = parseFloat(filters.distance);
-                      donors = donors.filter(d => {
-                        if (!d.tempLocation?.lat || !d.tempLocation?.lng) return false;
-                        return distKm(refPos.lat, refPos.lng, d.tempLocation.lat, d.tempLocation.lng) <= maxDist;
-                      });
-                    }
-                    
-                    // Content type filter - only hide if a different content type is explicitly selected
-                    if (filters.contentType && !['', 'users'].includes(filters.contentType)) {
-                      donors = [];
-                    }
-                    
-                    return (
-                      <>
-                        <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                          <div className="w-3 h-3 bg-blue-500 rounded-full" /> Blood Donors ({donors.length})
-                        </h2>
-                        {donors.length === 0 ? (
-                          <div className="text-center py-12 text-gray-500">
-                            No donors found matching your criteria
-                          </div>
-                        ) : (
-                          <div className="grid md:grid-cols-2 gap-4">
-                            {donors.map(donor => {
-                              const status = connStatuses[donor._id] || 'none';
-                              const isConnected = status === 'accepted';
-                              
-                              return (
-                                <div key={donor._id} className="relative group cursor-pointer" onClick={() => setSelectedDonor(donor)}>
-                                  <Card className="p-4 hover:shadow-lg transition-shadow">
-                                    <div className="flex items-start gap-3">
-                                      <div className="relative">
-                                        <div className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-lg">
-                                          {donor.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                                        </div>
-                                        {donor.isVerified && (
-                                          <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
-                                            <CheckIcon className="w-3 h-3 text-white" />
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="flex-1">
-                                        <h4 className="font-semibold text-gray-900">{donor.name}</h4>
-                                        <div className="flex items-center gap-2 mt-1">
-                                          <span className="inline-flex items-center text-sm font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">
-                                            {donor.bloodGroup || '?'}
-                                          </span>
-                                          <span className="inline-flex items-center text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
-                                            ● Available
-                                          </span>
-                                        </div>
-                                        <div className="text-sm text-gray-600 mt-2 flex items-center gap-1">
-                                          <LocateIcon className="w-3 h-3" />
-                                          <span>{donorAddresses[donor._id] || smartLocationLabel(donor.tempLocation, donor.municipality, donor.district)}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </Card>
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); setSelectedDonor(donor); }}
-                                    className={`absolute top-3 right-3 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow transition-colors ${
-                                      isConnected 
-                                        ? 'bg-green-500 hover:bg-green-600' 
-                                        : 'bg-red-500 hover:bg-red-600'
-                                    }`}>
-                                    <UserPlusIcon className="w-3 h-3" /> {isConnected ? 'Connected' : 'Connect'}
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
+                  <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full" /> Blood Donors ({sampleDonors.length})
+                  </h2>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {sampleDonors.map(donor => (
+                      <div key={donor.id} className="relative group">
+                        <DonorCard {...donor} />
+                        <button onClick={() => showToast('Connect via the map pin to message donors.', 'info')}
+                          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow">
+                          <UserPlusIcon className="w-3 h-3" /> Connect
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </section>
               )}
 
               {/* ── Hospitals ─────────────────────────────────────────── */}
               {(resultType === 'all' || resultType === 'hospitals') && (
                 <section>
-                  {(() => {
-                    // Apply all filters to hospitals
-                    let hospitals = mapUsers.filter(u => u.role === 'hospital');
-                    
-                    // Distance filter
-                    if (filters.distance && refPos) {
-                      const maxDist = parseFloat(filters.distance);
-                      hospitals = hospitals.filter(h => {
-                        if (!h.tempLocation?.lat || !h.tempLocation?.lng) return false;
-                        return distKm(refPos.lat, refPos.lng, h.tempLocation.lat, h.tempLocation.lng) <= maxDist;
-                      });
-                    }
-                    
-                    // Content type filter - only hide if a different content type is explicitly selected
-                    if (filters.contentType && !['', 'hospitals'].includes(filters.contentType)) {
-                      hospitals = [];
-                    }
-                    
-                    return (
-                      <>
-                        <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                          <div className="w-3 h-3 bg-green-500 rounded-full" /> Hospitals &amp; Blood Banks ({hospitals.length})
-                        </h2>
-                        {hospitals.length === 0 ? (
-                          <div className="text-center py-12 text-gray-500">
-                            No hospitals found
-                          </div>
-                        ) : (
-                          <div className="grid md:grid-cols-2 gap-4">
-                            {hospitals.map(hospital => (
-                              <div key={hospital._id} className="relative group cursor-pointer" onClick={() => setSelectedHospital(hospital)}>
-                                <Card className="p-4 hover:shadow-lg transition-shadow">
-                                  <div className="flex items-start gap-3">
-                                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-2xl">
-                                      🏥
-                                    </div>
-                                    <div className="flex-1">
-                                      <div className="flex items-start justify-between gap-2">
-                                        <h4 className="font-semibold text-gray-900">
-                                          {hospital.hospitalName || hospital.name}
-                                        </h4>
-                                        {hospital.isVerified && (
-                                          <span className="inline-flex items-center text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">
-                                            Verified
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="text-sm text-gray-600 mt-1 flex items-center gap-1">
-                                        <LocateIcon className="w-3 h-3" />
-                                        <span>{hospitalAddresses[hospital._id] || smartLocationLabel(hospital.tempLocation, hospital.municipality, hospital.district)}</span>
-                                      </div>
-                                      <div className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full" />
-                                        <span>Open Now • 24/7</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </Card>
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); setSelectedHospital(hospital); }}
-                                  className="absolute top-3 right-3 bg-red-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow hover:bg-red-600 transition-colors">
-                                  <PhoneIcon className="w-3 h-3" /> Contact
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
+                  <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-500 rounded-full" /> Hospitals &amp; Blood Banks ({sampleHospitals.length})
+                  </h2>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {sampleHospitals.map(h => (
+                      <div key={h.id} className="relative group">
+                        <HospitalCard {...h} />
+                        <button className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow">
+                          <PhoneIcon className="w-3 h-3" /> Contact
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </section>
               )}
 
@@ -2026,482 +1334,6 @@ export function SearchPage() {
           </main>
         </div>
       </div>
-
-      {/* ── Donor Dialog ──────────────────────────────────────────────────── */}
-      {selectedDonor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedDonor(null)}>
-          <div 
-            className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden"
-            style={{ border: '4px solid #10B981' }}
-            onClick={(e) => e.stopPropagation()}>
-            
-            {/* Header with Connect Button */}
-            <div className="p-6 pb-4">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-start gap-4">
-                  <div className="relative">
-                    <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-2xl">
-                      {selectedDonor.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                    </div>
-                    {selectedDonor.isVerified && (
-                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
-                        <CheckIcon className="w-4 h-4 text-white" />
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">{selectedDonor.name}</h3>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="inline-flex items-center text-sm font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full">
-                        {selectedDonor.bloodGroup || 'AB-'}
-                      </span>
-                      <span className="inline-flex items-center text-xs text-green-600 font-medium">
-                        <span className="w-2 h-2 bg-green-500 rounded-full mr-1.5"></span>
-                        Available
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <button 
-                  className={`font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm ${
-                    connStatuses[selectedDonor._id] === 'accepted'
-                      ? 'bg-green-500 hover:bg-green-600 text-white'
-                      : 'bg-red-500 hover:bg-red-600 text-white'
-                  }`}
-                  onClick={() => {
-                    const status = connStatuses[selectedDonor._id] || 'none';
-                    if (status === 'accepted') {
-                      showToast('Already connected!', 'info');
-                    } else {
-                      showToast('Connection request sent!', 'success');
-                    }
-                  }}>
-                  <UserPlusIcon className="w-4 h-4" />
-                  {connStatuses[selectedDonor._id] === 'accepted' ? 'Connected' : 'Connect'}
-                </button>
-              </div>
-
-              {/* Location and Last Donation */}
-              <div className="space-y-2 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <LocateIcon className="w-4 h-4 text-gray-400" />
-                  {/* FIXED: Shows real geocoded address, lazy-loaded */}
-                  <span>{selectedDonorAddress || 'Loading address…'}</span>
-                </div>
-                {selectedDonor.tempLocation && refPos && connStatuses[selectedDonor._id] === 'accepted' && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4" />
-                    <span className="text-red-500 font-semibold">
-                      {getDistanceText(selectedDonor.tempLocation.lat, selectedDonor.tempLocation.lng)}
-                    </span>
-                    <span className="text-gray-400">•</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const userLat = refPos.lat;
-                        const userLng = refPos.lng;
-                        const donorLat = selectedDonor.tempLocation.lat;
-                        const donorLng = selectedDonor.tempLocation.lng;
-                        const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${donorLat},${donorLng}&travelmode=driving`;
-                        window.open(mapsUrl, '_blank');
-                      }}
-                      className="text-blue-600 hover:text-blue-700 font-semibold hover:underline"
-                    >
-                      Get Directions
-                    </button>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 flex items-center justify-center text-gray-400">⏰</div>
-                  <span>Last donation: {selectedDonorLastDonation !== null ? selectedDonorLastDonation : 'Loading...'}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="px-6 pb-6 flex gap-3">
-              {(() => {
-                const status = connStatuses[selectedDonor._id] || 'none';
-                const isConnected = status === 'accepted';
-                
-                if (isConnected) {
-                  return (
-                    <button 
-                      onClick={() => {
-                        setSelectedDonor(null);
-                        window.dispatchEvent(new CustomEvent('lf:openchat', { 
-                          detail: selectedDonor._id 
-                        }));
-                        showToast('Opening chat...', 'info');
-                      }}
-                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-xl transition-colors text-base flex items-center justify-center gap-2">
-                      <MessageCircleIcon className="w-5 h-5" />
-                      Message
-                    </button>
-                  );
-                } else {
-                  return (
-                    <button 
-                      onClick={() => {
-                        showToast('Please connect with the donor first!', 'info');
-                      }}
-                      className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl transition-colors text-base">
-                      Request Blood
-                    </button>
-                  );
-                }
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Hospital Dialog ───────────────────────────────────────────────── */}
-      {selectedHospital && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedHospital(null)}>
-          <div 
-            className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden"
-            style={{ border: '4px solid #10B981' }}
-            onClick={(e) => e.stopPropagation()}>
-            
-            {/* Header */}
-            <div className="p-6 pb-4">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-4xl">
-                    🏥
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">{selectedHospital.hospitalName || selectedHospital.name}</h3>
-                    {selectedHospital.isVerified && (
-                      <span className="inline-flex items-center text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-semibold mt-1">
-                        Verified
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <button 
-                  className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
-                  onClick={() => {
-                    if (selectedHospital.phone) {
-                      // Show confirmation with phone number
-                      const confirmed = window.confirm(
-                        `Call ${selectedHospital.hospitalName || selectedHospital.name}?\n\nPhone: ${selectedHospital.phone}\n\nClick OK to make the call.`
-                      );
-                      if (confirmed) {
-                        window.location.href = `tel:${selectedHospital.phone}`;
-                      }
-                    } else {
-                      // showToast('Phone number not available', 'error');
-                     window.location.href = `tel:${selectedHospital.phone}`;
-
-                    }
-                  }}>
-                  <PhoneIcon className="w-4 h-4" />
-                  Contact
-                </button>
-              </div>
-
-              {/* Location and Status */}
-              <div className="space-y-2 text-sm mb-6">
-                <div className="flex items-center gap-2 text-gray-600">
-                  <LocateIcon className="w-4 h-4 text-gray-400" />
-                  {/* FIXED: Shows real geocoded address, lazy-loaded */}
-                  <span>{selectedHospitalAddress || 'Loading address…'}</span>
-                </div>
-                {selectedHospital.tempLocation && refPos && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-4 h-4" />
-                    <span className="text-red-500 font-semibold">
-                      {getDistanceText(selectedHospital.tempLocation.lat, selectedHospital.tempLocation.lng)}
-                    </span>
-                    <span className="text-gray-400">•</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const userLat = refPos.lat;
-                        const userLng = refPos.lng;
-                        const hospitalLat = selectedHospital.tempLocation.lat;
-                        const hospitalLng = selectedHospital.tempLocation.lng;
-                        const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${hospitalLat},${hospitalLng}&travelmode=driving`;
-                        window.open(mapsUrl, '_blank');
-                      }}
-                      className="text-blue-600 hover:text-blue-700 font-semibold hover:underline"
-                    >
-                      Get Directions
-                    </button>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 text-green-600 font-medium">
-                  <div className="w-4 h-4 flex items-center justify-center">⏰</div>
-                  <span>Open Now</span>
-                  <span className="text-gray-400">• 24/7</span>
-                </div>
-              </div>
-
-              {/* Blood Availability */}
-              <div>
-                <h4 className="text-xs font-bold text-gray-500 mb-3 tracking-wide">BLOOD AVAILABILITY</h4>
-                {loadingInventory ? (
-                  <div className="text-center py-6 text-gray-400 text-sm">Loading inventory...</div>
-                ) : selectedHospitalInventory ? (
-                  <div className="grid grid-cols-4 gap-2">
-                    {Object.entries(selectedHospitalInventory.inventory).map(([group, stock]: [string, any]) => {
-                      const percentage = (stock.units / stock.capacity) * 100;
-                      const status = stock.units === 0 || percentage < 20 
-                        ? 'critical' 
-                        : percentage < 50 
-                        ? 'low' 
-                        : 'good';
-                      
-                      return (
-                        <div 
-                          key={group} 
-                          className={`text-center py-3 rounded-xl font-bold text-sm ${
-                            status === 'critical' 
-                              ? 'bg-red-500 text-white' 
-                              : status === 'low'
-                              ? 'bg-orange-500 text-white'
-                              : 'bg-green-500 text-white'
-                          }`}>
-                          {group}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-4 gap-2">
-                    {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bg) => (
-                      <div 
-                        key={bg} 
-                        className="text-center py-3 rounded-xl font-bold text-sm bg-gray-300 text-gray-600">
-                        {bg}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="px-6 pb-6 flex gap-3">
-              <button 
-                onClick={() => {
-                  if (selectedHospital.tempLocation?.lat && selectedHospital.tempLocation?.lng) {
-                    const userLat = refPos?.lat || livePos?.lat || savedLoc?.lat;
-                    const userLng = refPos?.lng || livePos?.lng || savedLoc?.lng;
-                    
-                    const hospitalLat = selectedHospital.tempLocation.lat;
-                    const hospitalLng = selectedHospital.tempLocation.lng;
-                    const hospitalName = selectedHospital.hospitalName || selectedHospital.name;
-                    
-                    let mapsUrl;
-                    if (userLat && userLng) {
-                      mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${hospitalLat},${hospitalLng}&travelmode=driving`;
-                    } else {
-                      mapsUrl = `https://www.google.com/maps/search/?api=1&query=${hospitalLat},${hospitalLng}&query_place_id=${encodeURIComponent(hospitalName)}`;
-                    }
-                    
-                    window.open(mapsUrl, '_blank');
-                    showToast('Opening directions in Google Maps', 'success');
-                  } else {
-                    showToast('Hospital location not available', 'error');
-                  }
-                }}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-base">
-                <NavigationIcon className="w-5 h-5" />
-                Directions
-              </button>
-              {selectedHospital.phone && (
-                <button 
-                  onClick={() => {
-                    const confirmed = window.confirm(
-                      `Call ${selectedHospital.hospitalName || selectedHospital.name}?\n\nPhone: ${selectedHospital.phone}\n\nClick OK to make the call.`
-                    );
-                    if (confirmed) {
-                      window.location.href = `tel:${selectedHospital.phone}`;
-                    }
-                  }}
-                  className="bg-white border-2 border-red-500 text-red-500 hover:bg-red-50 font-bold py-4 px-6 rounded-xl transition-colors flex items-center gap-2">
-                  <PhoneIcon className="w-5 h-5" />
-                  <span className="text-sm">{selectedHospital.phone}</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Camp Registration Dialog ──────────────────────────────────────── */}
-      {showCampRegistration && selectedCamp && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowCampRegistration(false)}>
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">Register for Blood Camp</h3>
-                <p className="text-sm text-gray-600 mt-1">{selectedCamp.title}</p>
-              </div>
-              <button onClick={() => setShowCampRegistration(false)} className="text-gray-400 hover:text-gray-600">
-                <XIcon className="w-6 h-6" />
-              </button>
-            </div>
-
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                const token = localStorage.getItem('lf_token');
-                const res = await fetch(`${API}/api/camp-registration/${selectedCamp._id}`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                  },
-                  body: JSON.stringify({
-                    fullName: campRegForm.fullName,
-                    email: campRegForm.email,
-                    phone: campRegForm.phone,
-                    age: parseInt(campRegForm.age),
-                    weight: parseInt(campRegForm.weight),
-                    lastDonationMonth: campRegForm.lastDonationMonth,
-                    lastDonationYear: campRegForm.lastDonationYear,
-                  }),
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'Registration failed');
-                
-                showToast('Successfully registered for blood camp!', 'success');
-                setShowCampRegistration(false);
-                setSelectedCamp(null);
-                
-                // Refresh camps to show updated registration count
-                const campsRes = await fetch(`${API}/api/blood-camps/approved`, {
-                  headers: token ? { Authorization: `Bearer ${token}` } : {},
-                });
-                if (campsRes.ok) {
-                  const campsData = await campsRes.json();
-                  setBloodCamps(campsData || []);
-                }
-              } catch (err: any) {
-                showToast(err.message || 'Registration failed', 'error');
-              }
-            }} className="space-y-4">
-              
-              {/* Personal Information */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={campRegForm.fullName}
-                  onChange={(e) => setCampRegForm({ ...campRegForm, fullName: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="Enter your full name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  value={campRegForm.email}
-                  onChange={(e) => setCampRegForm({ ...campRegForm, email: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="your.email@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Number *</label>
-                <input
-                  type="tel"
-                  required
-                  value={campRegForm.phone}
-                  onChange={(e) => setCampRegForm({ ...campRegForm, phone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="98XXXXXXXX"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Age *</label>
-                  <input
-                    type="number"
-                    required
-                    min="18"
-                    max="65"
-                    value={campRegForm.age}
-                    onChange={(e) => setCampRegForm({ ...campRegForm, age: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="25"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Weight (kg) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="45"
-                    value={campRegForm.weight}
-                    onChange={(e) => setCampRegForm({ ...campRegForm, weight: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="60"
-                  />
-                </div>
-              </div>
-
-              {/* Last Donation */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Last Blood Donation</label>
-                <div className="grid grid-cols-2 gap-4">
-                  <select
-                    value={campRegForm.lastDonationMonth}
-                    onChange={(e) => setCampRegForm({ ...campRegForm, lastDonationMonth: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                    <option value="">Month</option>
-                    {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m, i) => (
-                      <option key={m} value={String(i + 1)}>{m}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={campRegForm.lastDonationYear}
-                    onChange={(e) => setCampRegForm({ ...campRegForm, lastDonationYear: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                    <option value="">Year</option>
-                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                      <option key={year} value={String(year)}>{year}</option>
-                    ))}
-                  </select>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Leave blank if this is your first donation</p>
-              </div>
-
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <p className="text-sm text-purple-800">
-                  <strong>Note:</strong> You must be at least 18 years old, weigh at least 45kg, and have waited at least 3 months since your last donation.
-                </p>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCampRegistration(false)}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-lg transition-colors">
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors">
-                  Complete Registration
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

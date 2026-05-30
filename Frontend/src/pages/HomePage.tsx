@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { SearchIcon, HeartIcon, UsersIcon, ShieldCheckIcon, ArrowRightIcon, DropletIcon, MapPinIcon, CalendarIcon, TrendingUpIcon, AwardIcon } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { SearchBar } from '../components/features/SearchBar';
@@ -103,8 +103,6 @@ export function HomePage() {
   const [loadingCamps, setLoadingCamps] = useState(true);
   const [debugInfo, setDebugInfo] = useState<string>('');
 
-  const location = useLocation();
-
   // Redirect hospitals to their dashboard - they shouldn't access home page
   useEffect(() => {
     try {
@@ -120,60 +118,6 @@ export function HomePage() {
       console.error('Error checking user role:', error);
     }
   }, [navigate]);
-
-  // Handle Google OAuth callback code on the homepage
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const code = params.get('code');
-    const error = params.get('error');
-
-    if (!code && !error) return;
-
-    if (error) {
-      if (error === 'database_unavailable' || error === 'database_error') {
-        navigate('/login?error=database_unavailable', { replace: true });
-      } else {
-        navigate('/login?error=google_failed', { replace: true });
-      }
-      return;
-    }
-
-    const exchangeCode = async () => {
-      try {
-        const res = await fetch(
-          `${API}/api/auth/google/exchange?code=${encodeURIComponent(code)}`
-        );
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          throw new Error(data?.error || `Exchange failed (${res.status})`);
-        }
-
-        const { token, user } = data;
-        if (!token || !user) {
-          throw new Error('Invalid server response');
-        }
-
-        const needsProfileCompletion =
-          !user.isVerified || !user.bloodGroup || !user.phone || !user.province;
-
-        if (needsProfileCompletion) {
-          sessionStorage.setItem('google_pending', JSON.stringify({ token, user }));
-          navigate('/signup', { replace: true });
-          return;
-        }
-
-        localStorage.setItem('lf_token', token);
-        localStorage.setItem('lf_user', JSON.stringify(user));
-        navigate('/', { replace: true });
-      } catch (err: any) {
-        console.error('Google exchange error:', err.message);
-        navigate('/login?error=google_failed', { replace: true });
-      }
-    };
-
-    exchangeCode();
-  }, [location.search, navigate]);
 
   // Fetch upcoming blood camps - show real data only for logged-in users
   useEffect(() => {
