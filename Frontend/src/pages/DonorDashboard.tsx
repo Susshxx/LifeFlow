@@ -57,8 +57,6 @@ export function DonorDashboard() {
 
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [upcomingCamps, setUpcomingCamps] = useState<any[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [showAllNotificationsModal, setShowAllNotificationsModal] = useState(false);
   const [bloodRequestNotification, setBloodRequestNotification] = useState<{
     hospitalName: string;
     bloodGroup: string;
@@ -178,23 +176,14 @@ export function DonorDashboard() {
       }
     };
 
-    const fetchNotifications = async () => {
-      // Temporarily disabled to prevent null reference errors
-      // TODO: Fix database messages with null senders before re-enabling
-      console.log('Notifications temporarily disabled');
-      setNotifications([]);
-    };
-
     fetchStats();
     fetchRecentActivity();
     fetchUpcomingCamps();
-    // fetchNotifications(); // Disabled temporarily
     
     // Refresh stats every 30 seconds to catch updates
     const interval = setInterval(() => {
       fetchStats();
       fetchRecentActivity();
-      // fetchNotifications(); // Disabled temporarily
     }, 30000);
     
     return () => clearInterval(interval);
@@ -339,49 +328,6 @@ export function DonorDashboard() {
     localStorage.removeItem('lf_token');
     localStorage.removeItem('lf_user');
     navigate('/');
-  };
-
-  const handleMarkNotificationAsRead = (notificationId: string) => {
-    // Add to read list in localStorage
-    const readIds = JSON.parse(localStorage.getItem('lf_read_notifications') || '[]');
-    if (!readIds.includes(notificationId)) {
-      readIds.push(notificationId);
-      localStorage.setItem('lf_read_notifications', JSON.stringify(readIds));
-    }
-    
-    // Update state
-    setNotifications(prev => 
-      prev.map(notif => 
-        notif.id === notificationId ? { ...notif, isRead: true } : notif
-      )
-    );
-  };
-
-  const handleMarkAllNotificationsAsRead = () => {
-    // Add all notification IDs to read list in localStorage
-    const readIds = JSON.parse(localStorage.getItem('lf_read_notifications') || '[]');
-    const allNotificationIds = notifications.map(n => n.id);
-    const updatedReadIds = [...new Set([...readIds, ...allNotificationIds])];
-    localStorage.setItem('lf_read_notifications', JSON.stringify(updatedReadIds));
-    
-    // Update state
-    setNotifications(prev => 
-      prev.map(notif => ({ ...notif, isRead: true }))
-    );
-  };
-
-  const handleDismissNotification = (notificationId: string) => {
-    // Add to dismissed list in localStorage
-    const dismissedIds = JSON.parse(localStorage.getItem('lf_dismissed_notifications') || '[]');
-    if (!dismissedIds.includes(notificationId)) {
-      dismissedIds.push(notificationId);
-      localStorage.setItem('lf_dismissed_notifications', JSON.stringify(dismissedIds));
-    }
-    
-    // Remove from current notifications
-    setNotifications(prev => 
-      prev.filter(notif => notif.id !== notificationId)
-    );
   };
 
   return (
