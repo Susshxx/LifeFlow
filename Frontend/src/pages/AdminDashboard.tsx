@@ -448,7 +448,7 @@ export function AdminDashboard() {
     label: 'Camps',
     icon: <CalendarIcon className="w-4 h-4" />
   }];
-  return <div className="min-h-screen bg-gray-900 flex">
+  return <div className="min-h-screen bg-gray-900">
       <Sidebar role="admin" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Toast */}
@@ -464,7 +464,7 @@ export function AdminDashboard() {
         </div>
       )}
 
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 lg:ml-64">
         {/* Header */}
         <header className="bg-gray-800 border-b border-gray-700 px-4 lg:px-8 py-4">
           <div className="flex items-center justify-between">

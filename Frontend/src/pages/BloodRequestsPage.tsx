@@ -466,10 +466,10 @@ export function BloodRequestsPage() {
   const normalRequests = bloodRequests.filter(r => !r.isEmergency);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar role={userRole} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 lg:ml-64">
         {/* Toast */}
         {toast && (
           <div style={{

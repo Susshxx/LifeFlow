@@ -239,7 +239,7 @@ export function CampApprovalsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex">
+    <div className="min-h-screen bg-gray-900">
       <Sidebar role="admin" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {toast && (
@@ -253,7 +253,7 @@ export function CampApprovalsPage() {
         </div>
       )}
 
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 lg:ml-64">
         <header className="bg-gray-800 border-b border-gray-700 px-4 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

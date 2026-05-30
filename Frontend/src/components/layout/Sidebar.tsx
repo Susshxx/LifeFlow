@@ -210,7 +210,7 @@ export function Sidebar({
       <aside className={`
           fixed top-0 left-0 z-50 h-screen bg-white border-r border-gray-200
           transform transition-all duration-300 ease-in-out
-          lg:translate-x-0 lg:static lg:z-auto
+          lg:translate-x-0 lg:fixed lg:z-50
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           ${isCollapsed ? 'lg:w-20' : 'lg:w-64'}
           w-64 flex flex-col

@@ -179,140 +179,22 @@ export function DonorDashboard() {
     };
 
     const fetchNotifications = async () => {
-      const token = localStorage.getItem('lf_token');
-      if (!token) {
-        console.log('No token found for notifications');
-        return;
-      }
-
-      try {
-        console.log('Fetching notifications...');
-        
-        // Get dismissed and read notifications from localStorage
-        const dismissedIds = JSON.parse(localStorage.getItem('lf_dismissed_notifications') || '[]');
-        const readNotificationIds = JSON.parse(localStorage.getItem('lf_read_notifications') || '[]');
-        
-        // Fetch all connections to get messages
-        const connectionsRes = await fetch(`${API}/api/connections`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (connectionsRes.ok) {
-          const connections = await connectionsRes.json();
-          console.log('Connections found:', connections.length);
-          const allNotifications: any[] = [];
-
-          // Fetch messages from each connection
-          for (const conn of connections) {
-            try {
-              const messagesRes = await fetch(`${API}/api/connections/${conn._id}/messages`, {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              });
-
-              if (messagesRes.ok) {
-                const messages = await messagesRes.json();
-                console.log(`Messages in connection ${conn._id}:`, messages.length);
-                
-                // Filter for notification messages (those starting with 📢 Notification:)
-                const notificationMessages = messages
-                  .filter((msg: any) => {
-                    // Add comprehensive null checks
-                    if (!msg || !msg.sender || !msg.content) return false;
-                    
-                    const isText = msg.type === 'text';
-                    const hasPrefix = msg.content.startsWith('📢 Notification:');
-                    const notFromMe = msg.sender._id && (msg.sender._id !== storedUser?.id && msg.sender._id !== storedUser?._id);
-                    const notDismissed = !dismissedIds.includes(msg._id);
-                    
-                    console.log('Message check:', {
-                      id: msg._id,
-                      isText,
-                      hasPrefix,
-                      notFromMe,
-                      notDismissed,
-                      hasSender: !!msg.sender,
-                      content: msg.content?.substring(0, 50)
-                    });
-                    
-                    return isText && hasPrefix && notFromMe && notDismissed;
-                  })
-                  .filter((msg: any) => msg && msg.sender && msg.sender._id && msg.sender.name) // Extra safety filter before map
-                  .map((msg: any) => {
-                    const createdDate = new Date(msg.createdAt);
-                    const now = new Date();
-                    const diffMs = now.getTime() - createdDate.getTime();
-                    const diffMins = Math.floor(diffMs / 60000);
-                    const diffHours = Math.floor(diffMs / 3600000);
-                    const diffDays = Math.floor(diffMs / 86400000);
-                    
-                    let timeStr;
-                    if (diffMins < 1) {
-                      timeStr = 'Just now';
-                    } else if (diffMins < 60) {
-                      timeStr = `${diffMins}m ago`;
-                    } else if (diffHours < 24) {
-                      timeStr = `${diffHours}h ago`;
-                    } else if (diffDays < 7) {
-                      timeStr = `${diffDays}d ago`;
-                    } else {
-                      timeStr = createdDate.toLocaleDateString('en-US', { 
-                        month: 'short', 
-                        day: 'numeric'
-                      });
-                    }
-                    
-                    return {
-                      id: msg._id,
-                      type: 'info' as const,
-                      title: msg.sender?.name || 'Hospital',
-                      message: msg.content.replace('📢 Notification:', '').trim(),
-                      time: timeStr,
-                      createdAt: msg.createdAt,
-                      isRead: readNotificationIds.includes(msg._id), // Check localStorage instead of readBy array
-                      action: {
-                        label: 'View Message',
-                        href: '/dashboard/chat'
-                      }
-                    };
-                  });
-
-                console.log('Notification messages found:', notificationMessages.length);
-                allNotifications.push(...notificationMessages);
-              }
-            } catch (err) {
-              console.error('Failed to fetch messages for connection:', err);
-            }
-          }
-
-          // Sort by createdAt (most recent first)
-          allNotifications.sort((a, b) => 
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          
-          console.log('Total notifications to display:', allNotifications.length);
-          setNotifications(allNotifications);
-        } else {
-          console.error('Failed to fetch connections:', connectionsRes.status);
-        }
-      } catch (err) {
-        console.error('Failed to fetch notifications:', err);
-      }
+      // Temporarily disabled to prevent null reference errors
+      // TODO: Fix database messages with null senders before re-enabling
+      console.log('Notifications temporarily disabled');
+      setNotifications([]);
     };
 
     fetchStats();
     fetchRecentActivity();
     fetchUpcomingCamps();
-    fetchNotifications();
+    // fetchNotifications(); // Disabled temporarily
     
     // Refresh stats every 30 seconds to catch updates
     const interval = setInterval(() => {
       fetchStats();
       fetchRecentActivity();
-      fetchNotifications();
+      // fetchNotifications(); // Disabled temporarily
     }, 30000);
     
     return () => clearInterval(interval);
@@ -503,10 +385,10 @@ export function DonorDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
       <Sidebar role="user" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="flex-1 min-w-0 lg:ml-0">
+      <main className="flex-1 min-w-0 lg:ml-64">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-4 lg:px-8 py-4 sticky top-0 z-30">
           <div className="flex items-center justify-between">
