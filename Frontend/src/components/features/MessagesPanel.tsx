@@ -66,11 +66,12 @@ function formatTime(iso: string) {
 }
 
 function previewText(msg: ChatMessage, isMe: boolean): string {
+  if (!msg || !msg.sender) return 'Invalid message';
   const prefix = isMe ? 'You: ' : '';
   if (msg.type === 'image') return `${prefix}📷 Image`;
   if (msg.type === 'audio') return `${prefix}🎤 Voice message`;
   if (msg.type === 'file') return `${prefix}📎 ${msg.fileName || 'File'}`;
-  return `${prefix}${msg.content}`;
+  return `${prefix}${msg.content || ''}`;
 }
 
 export function MessagesPanel({ className = '' }: { className?: string }) {
@@ -190,7 +191,7 @@ export function MessagesPanel({ className = '' }: { className?: string }) {
               const latest = preview?.latest;
 
               const subtitle = (() => {
-                if (!latest) {
+                if (!latest || !latest.sender || !latest.sender._id) {
                   return other.bloodGroup ? (
                     <span className="flex items-center gap-1 text-red-500 text-xs">
                       <DropletIcon className="w-3 h-3" />
