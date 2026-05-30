@@ -220,9 +220,12 @@ export function DonorDashboard() {
                 // Filter for notification messages (those starting with 📢 Notification:)
                 const notificationMessages = messages
                   .filter((msg: any) => {
+                    // Add comprehensive null checks
+                    if (!msg || !msg.sender || !msg.content) return false;
+                    
                     const isText = msg.type === 'text';
-                    const hasPrefix = msg.content && msg.content.startsWith('📢 Notification:');
-                    const notFromMe = msg.sender && msg.sender._id && (msg.sender._id !== storedUser?.id && msg.sender._id !== storedUser?._id);
+                    const hasPrefix = msg.content.startsWith('📢 Notification:');
+                    const notFromMe = msg.sender._id && (msg.sender._id !== storedUser?.id && msg.sender._id !== storedUser?._id);
                     const notDismissed = !dismissedIds.includes(msg._id);
                     
                     console.log('Message check:', {
@@ -231,6 +234,7 @@ export function DonorDashboard() {
                       hasPrefix,
                       notFromMe,
                       notDismissed,
+                      hasSender: !!msg.sender,
                       content: msg.content?.substring(0, 50)
                     });
                     
