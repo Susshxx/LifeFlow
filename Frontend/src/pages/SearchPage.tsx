@@ -1729,39 +1729,84 @@ async function sendConnectRequest(toUserId: string): Promise<'sent' | 'already' 
   } catch { return 'error'; }
 }
 
-function buildUserPopupHTML(u: MapUser, isMe: boolean, connStatus: string) {
+function buildUserPopupHTML(u: MapUser, isMe: boolean, connStatus: string, distance?: number) {
+  // Avatar with verified badge
   const avatarHTML = u.avatar
-    ? `<img src="${u.avatar}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid #e5e7eb;flex-shrink:0;"/>`
-    : `<div style="width:40px;height:40px;border-radius:50%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#6b7280;flex-shrink:0;">${u.name[0]?.toUpperCase()}</div>`;
-  const roleTag = u.role === 'hospital'
-    ? `<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">Hospital</span>`
-    : `<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;">Blood Donor</span>`;
-  const bgTag = u.bloodGroup
-    ? `<span style="background:#fee2e2;color:#b91c1c;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;">🩸 ${u.bloodGroup}</span>`
+    ? `<img src="${u.avatar}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.1);flex-shrink:0;"/>`
+    : `<div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#fff;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.1);">${u.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}</div>`;
+  
+  const verifiedBadge = u.isVerified 
+    ? `<div style="position:absolute;bottom:-2px;right:-2px;width:20px;height:20px;background:#22c55e;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`
     : '';
-  const locTag = u.tempLocation?.label
-    ? `<p style="font-size:11px;color:#6b7280;margin:4px 0 0;">📍 ${u.tempLocation.label}</p>` : '';
+  
+  // Blood group badge
+  const bgTag = u.bloodGroup
+    ? `<span style="background:#fee2e2;color:#b91c1c;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">🩸 ${u.bloodGroup}</span>`
+    : '';
+  
+  // Availability badge
+  const availTag = u.role === 'user'
+    ? `<span style="background:#dcfce7;color:#16a34a;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px;"><span style="width:6px;height:6px;background:#22c55e;border-radius:50%;"></span>Available</span>`
+    : '';
+  
+  // Location with distance
+  const locationHTML = u.tempLocation?.label
+    ? `<div style="display:flex;align-items:start;gap:6px;margin:12px 0;padding:10px;background:#f9fafb;border-radius:8px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+        <div style="flex:1;min-width:0;">
+          <p style="font-size:12px;color:#374151;margin:0;line-height:1.4;">${u.tempLocation.label}</p>
+          ${distance ? `<p style="font-size:11px;color:#ef4444;margin:4px 0 0;font-weight:600;">${distance.toFixed(1)} km • <a href="https://www.google.com/maps/dir/?api=1&destination=${u.tempLocation.lat},${u.tempLocation.lng}" target="_blank" style="color:#3b82f6;text-decoration:none;">Get Directions</a></p>` : ''}
+        </div>
+      </div>`
+    : '';
+  
+  // Last donation info for donors
+  const donationInfo = u.role === 'user'
+    ? `<div style="display:flex;align-items:center;gap:6px;padding:8px;background:#fef3c7;border-radius:8px;margin:8px 0;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        <p style="font-size:11px;color:#92400e;margin:0;font-weight:600;">Last donation: No donation history</p>
+      </div>`
+    : '';
+  
+  // Action button based on connection status
   let actionBtn = '';
   if (isMe) {
-    actionBtn = `<p style="text-align:center;font-size:11px;color:#6b7280;margin-top:8px;font-style:italic;">This is you</p>`;
+    actionBtn = `<div style="text-align:center;padding:10px;background:#f3f4f6;border-radius:8px;margin-top:10px;">
+      <p style="font-size:12px;color:#6b7280;margin:0;font-weight:600;">📍 This is your location</p>
+    </div>`;
   } else if (connStatus === 'accepted') {
     actionBtn = `<button onclick="window.dispatchEvent(new CustomEvent('lf:openmsg',{detail:'${u._id}'}))"
-      style="margin-top:10px;width:100%;padding:7px 0;background:#22c55e;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">💬 Message</button>`;
+      style="margin-top:12px;width:100%;padding:12px 0;background:#3b82f6;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 8px rgba(59,130,246,0.3);transition:all 0.2s;" onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        Message
+      </button>`;
   } else if (connStatus === 'pending') {
-    actionBtn = `<button disabled style="margin-top:10px;width:100%;padding:7px 0;background:#f3f4f6;color:#9ca3af;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:not-allowed;">⏳ Request Sent</button>`;
+    actionBtn = `<button disabled style="margin-top:12px;width:100%;padding:12px 0;background:#f3f4f6;color:#9ca3af;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        Request Sent
+      </button>`;
   } else {
     actionBtn = `<button onclick="window.dispatchEvent(new CustomEvent('lf:connect',{detail:'${u._id}'}))"
-      style="margin-top:10px;width:100%;padding:7px 0;background:#ef4444;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🩸 Connect</button>`;
+      style="margin-top:12px;width:100%;padding:12px 0;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 8px rgba(239,68,68,0.3);transition:all 0.2s;" onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+        Connect
+      </button>`;
   }
-  return `<div style="min-width:200px;max-width:230px;font-family:sans-serif;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      ${avatarHTML}
-      <div style="min-width:0;">
-        <p style="font-weight:700;font-size:14px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.name}</p>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:3px;">${roleTag}${bgTag}</div>
+  
+  return `<div style="min-width:280px;max-width:320px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:4px;">
+    <div style="display:flex;align-items:start;gap:12px;margin-bottom:10px;">
+      <div style="position:relative;">
+        ${avatarHTML}
+        ${verifiedBadge}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <h3 style="font-weight:700;font-size:16px;margin:0 0 6px;color:#111827;">${u.name}</h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">${bgTag}${availTag}</div>
       </div>
     </div>
-    ${locTag}${actionBtn}
+    ${locationHTML}
+    ${donationInfo}
+    ${actionBtn}
   </div>`;
 }
 
@@ -2670,15 +2715,19 @@ export function SearchPage() {
       if (resultType === 'hospitals' && u.role !== 'hospital') return;
       if (resultType === 'requests') return;
       
-      if (distFilter && refPos) {
-        if (distKm(refPos.lat, refPos.lng, u.tempLocation.lat, u.tempLocation.lng) > distFilter) return;
+      // Calculate distance from reference position
+      let distance: number | undefined;
+      if (refPos && u.tempLocation) {
+        distance = distKm(refPos.lat, refPos.lng, u.tempLocation.lat, u.tempLocation.lng);
+        if (distFilter && distance > distFilter) return;
       }
+      
       if (filters.bloodGroup && u.role === 'user' && u.bloodGroup !== filters.bloodGroup) return;
 
       const icon = u.role === 'hospital' ? ICONS.hospital() : ICONS.donor();
       const status = connStatuses[u._id] || 'none';
       const marker = L.marker([u.tempLocation.lat, u.tempLocation.lng], { icon }).addTo(map);
-      marker.bindPopup(buildUserPopupHTML(u, false, status), { maxWidth: 260 });
+      marker.bindPopup(buildUserPopupHTML(u, false, status, distance), { maxWidth: 340 });
       // Show blood group on hover for donors, click to interact
       if (u.role === 'user' && u.bloodGroup) {
         marker.on('mouseover', () => marker.openPopup());
