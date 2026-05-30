@@ -1193,7 +1193,7 @@ export function SearchPage() {
           <main className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-gray-600">
-                Showing <span className="font-semibold">{mapUsers.length + bloodRequests.length || sampleDonors.length + sampleHospitals.length}</span> results
+                Showing <span className="font-semibold">{mapUsers.length + bloodRequests.length}</span> results
               </p>
               <Select options={[
                 { value: 'distance', label: 'Nearest First' },
@@ -1292,43 +1292,125 @@ export function SearchPage() {
               )}
 
               {/* ── Donors ────────────────────────────────────────────── */}
-              {(resultType === 'all' || resultType === 'donors') && (
-                <section>
-                  <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full" /> Blood Donors ({sampleDonors.length})
-                  </h2>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {sampleDonors.map(donor => (
-                      <div key={donor.id} className="relative group">
-                        <DonorCard {...donor} />
-                        <button onClick={() => showToast('Connect via the map pin to message donors.', 'info')}
-                          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow">
-                          <UserPlusIcon className="w-3 h-3" /> Connect
-                        </button>
+              {(resultType === 'all' || resultType === 'donors') && (() => {
+                // Filter real donors from mapUsers
+                const realDonors = mapUsers.filter(u => u.role === 'user');
+                
+                return (
+                  <section>
+                    <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full" /> Blood Donors ({realDonors.length})
+                    </h2>
+                    {realDonors.length === 0 ? (
+                      <div className="text-center py-12 bg-gray-50 rounded-xl">
+                        <p className="text-gray-500">No donors found. Try adjusting your filters.</p>
                       </div>
-                    ))}
-                  </div>
-                </section>
-              )}
+                    ) : (
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {realDonors.map(donor => {
+                          // Calculate distance if user has location
+                          const userLat = posMode === 'live' && livePos ? livePos.lat : savedLoc?.lat;
+                          const userLng = posMode === 'live' && livePos ? livePos.lng : savedLoc?.lng;
+                          const distance = userLat && userLng && donor.tempLocation
+                            ? `${distKm(userLat, userLng, donor.tempLocation.lat, donor.tempLocation.lng).toFixed(1)} km`
+                            : 'N/A';
+                          
+                          // Transform to DonorCard format
+                          const donorData = {
+                            id: donor._id,
+                            name: donor.name,
+                            bloodGroup: donor.bloodGroup || 'Unknown',
+                            location: donor.tempLocation?.label || donor.municipality || donor.district || 'Nepal',
+                            distance: distance,
+                            lastDonation: 'N/A', // This would need to come from donation history
+                            isVerified: donor.isVerified,
+                            isAvailable: true, // Assume available if on map
+                          };
+                          
+                          return (
+                            <div key={donor._id} className="relative group">
+                              <DonorCard {...donorData} />
+                              <button 
+                                onClick={() => {
+                                  // Scroll to map and highlight this donor
+                                  setView('map');
+                                  if (mapInst.current && donor.tempLocation) {
+                                    mapInst.current.setView([donor.tempLocation.lat, donor.tempLocation.lng], 15);
+                                  }
+                                  showToast('Click the donor pin on the map to connect', 'info');
+                                }}
+                                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow">
+                                <UserPlusIcon className="w-3 h-3" /> View on Map
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                );
+              })()}
 
               {/* ── Hospitals ─────────────────────────────────────────── */}
-              {(resultType === 'all' || resultType === 'hospitals') && (
-                <section>
-                  <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-500 rounded-full" /> Hospitals &amp; Blood Banks ({sampleHospitals.length})
-                  </h2>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {sampleHospitals.map(h => (
-                      <div key={h.id} className="relative group">
-                        <HospitalCard {...h} />
-                        <button className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow">
-                          <PhoneIcon className="w-3 h-3" /> Contact
-                        </button>
+              {(resultType === 'all' || resultType === 'hospitals') && (() => {
+                // Filter real hospitals from mapUsers
+                const realHospitals = mapUsers.filter(u => u.role === 'hospital');
+                
+                return (
+                  <section>
+                    <h2 className="text-lg font-heading font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full" /> Hospitals &amp; Blood Banks ({realHospitals.length})
+                    </h2>
+                    {realHospitals.length === 0 ? (
+                      <div className="text-center py-12 bg-gray-50 rounded-xl">
+                        <p className="text-gray-500">No hospitals found. Try adjusting your filters.</p>
                       </div>
-                    ))}
-                  </div>
-                </section>
-              )}
+                    ) : (
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {realHospitals.map(hospital => {
+                          // Calculate distance if user has location
+                          const userLat = posMode === 'live' && livePos ? livePos.lat : savedLoc?.lat;
+                          const userLng = posMode === 'live' && livePos ? livePos.lng : savedLoc?.lng;
+                          const distance = userLat && userLng && hospital.tempLocation
+                            ? `${distKm(userLat, userLng, hospital.tempLocation.lat, hospital.tempLocation.lng).toFixed(1)} km`
+                            : 'N/A';
+                          
+                          // Transform to HospitalCard format
+                          const hospitalData = {
+                            id: hospital._id,
+                            name: hospital.hospitalName || hospital.name,
+                            location: hospital.tempLocation?.label || hospital.municipality || hospital.district || 'Nepal',
+                            distance: distance,
+                            phone: 'Contact via map', // Phone would need to be added to user model
+                            isOpen: true, // Would need real data
+                            openHours: '24/7', // Would need real data
+                            bloodStock: [], // Would need to fetch from blood inventory
+                            isVerified: hospital.isVerified,
+                          };
+                          
+                          return (
+                            <div key={hospital._id} className="relative group">
+                              <HospitalCard {...hospitalData} />
+                              <button 
+                                onClick={() => {
+                                  // Scroll to map and highlight this hospital
+                                  setView('map');
+                                  if (mapInst.current && hospital.tempLocation) {
+                                    mapInst.current.setView([hospital.tempLocation.lat, hospital.tempLocation.lng], 15);
+                                  }
+                                  showToast('Click the hospital pin on the map for details', 'info');
+                                }}
+                                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow">
+                                <PhoneIcon className="w-3 h-3" /> View on Map
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                );
+              })()}
 
             </div>
           </main>
