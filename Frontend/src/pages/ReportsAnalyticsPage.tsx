@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   BarChart3Icon, PieChartIcon, TrendingUpIcon, UsersIcon, 
   BuildingIcon, DropletIcon, CalendarIcon, MenuIcon, 
-  DownloadIcon, RefreshCwIcon, Loader2Icon 
+  DownloadIcon, RefreshCwIcon, Loader2Icon, StarIcon, CheckIcon, XIcon 
 } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
 import { Card } from '../components/ui/Card';
@@ -31,12 +31,79 @@ export function ReportsAnalyticsPage() {
   // Monthly data for bar chart
   const [monthlyData, setMonthlyData] = useState<{ month: string; users: number; hospitals: number }[]>([]);
 
+  // Reviews data
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
+  const fetchReviews = async () => {
+    const token = localStorage.getItem('lf_token');
+    if (!token) return;
+
+    try {
+      setLoadingReviews(true);
+      const res = await fetch(`${API}/api/reviews`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Sort by rating (highest first), then by date
+        const sorted = data.sort((a: any, b: any) => {
+          if (b.rating !== a.rating) return b.rating - a.rating;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        setReviews(sorted);
+      }
+    } catch (error) {
+      console.error('Failed to fetch reviews:', error);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const toggleFeatured = async (reviewId: string, currentStatus: boolean) => {
+    const token = localStorage.getItem('lf_token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API}/api/reviews/${reviewId}/feature`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ featured: !currentStatus }),
+      });
+
+      if (res.ok) {
+        // Update local state
+        setReviews(prev =>
+          prev.map(review =>
+            review._id === reviewId
+              ? { ...review, featured: !currentStatus }
+              : review
+          )
+        );
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to update review');
+      }
+    } catch (error) {
+      console.error('Failed to toggle featured:', error);
+      alert('Failed to update review');
+    }
+  };
+
   const fetchAnalytics = async () => {
     const token = localStorage.getItem('lf_token');
     if (!token) return;
 
     try {
       console.log('[ReportsAnalytics] Fetching analytics data...');
+
+      // Fetch reviews
+      await fetchReviews();
 
       // Fetch all users
       const usersRes = await fetch(`${API}/api/users`, {
@@ -549,6 +616,133 @@ export function ReportsAnalyticsPage() {
               </p>
             </Card>
           </div>
+
+          {/* Reviews Management Section */}
+          <Card padding="lg" className="mt-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-heading font-semibold text-gray-900 flex items-center gap-2">
+                  <StarIcon className="w-5 h-5 text-warning" />
+                  User Reviews Management
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Feature reviews to display on homepage • {reviews.filter(r => r.featured).length} featured
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchReviews}
+                disabled={loadingReviews}
+                leftIcon={<RefreshCwIcon className={`w-4 h-4 ${loadingReviews ? 'animate-spin' : ''}`} />}
+              >
+                Refresh
+              </Button>
+            </div>
+
+            {loadingReviews ? (
+              <div className="text-center py-12">
+                <Loader2Icon className="w-8 h-8 text-primary animate-spin mx-auto" />
+              </div>
+            ) : reviews.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                No reviews available yet
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  {(showAllReviews ? reviews : reviews.slice(0, 3)).map((review) => (
+                    <div
+                      key={review._id}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        review.featured
+                          ? 'border-warning bg-warning/5'
+                          : 'border-gray-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            {/* Star Rating */}
+                            <div className="flex gap-0.5">
+                              {[...Array(5)].map((_, i) => (
+                                <StarIcon
+                                  key={i}
+                                  className={`w-4 h-4 ${
+                                    i < review.rating
+                                      ? 'text-warning fill-warning'
+                                      : 'text-gray-300'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            
+                            {/* Role Badge */}
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              review.role === 'donor'
+                                ? 'bg-blue-100 text-blue-700'
+                                : 'bg-purple-100 text-purple-700'
+                            }`}>
+                              {review.role === 'donor' ? '🩸 Donor' : '🏥 Recipient'}
+                            </span>
+
+                            {/* Featured Badge */}
+                            {review.featured && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-warning text-white font-medium">
+                                ⭐ Featured
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-gray-700 mb-2">{review.content}</p>
+
+                          <div className="flex items-center gap-3 text-sm text-gray-500">
+                            <span className="font-medium text-gray-900">{review.userName}</span>
+                            <span>•</span>
+                            <span>{review.location}</span>
+                            <span>•</span>
+                            <span>{new Date(review.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+
+                        {/* Feature Toggle Button */}
+                        <Button
+                          variant={review.featured ? 'outline' : 'primary'}
+                          size="sm"
+                          onClick={() => toggleFeatured(review._id, review.featured)}
+                          leftIcon={
+                            review.featured ? (
+                              <XIcon className="w-4 h-4" />
+                            ) : (
+                              <CheckIcon className="w-4 h-4" />
+                            )
+                          }
+                        >
+                          {review.featured ? 'Unfeature' : 'Feature'}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Show More/Less Button */}
+                {reviews.length > 3 && (
+                  <div className="mt-6 text-center">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAllReviews(!showAllReviews)}
+                    >
+                      {showAllReviews ? (
+                        <>Show Less ({reviews.length - 3} hidden)</>
+                      ) : (
+                        <>Show More ({reviews.length - 3} more)</>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
         </div>
       </main>
     </div>

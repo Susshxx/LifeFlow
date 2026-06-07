@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { UsersIcon, BuildingIcon, CalendarIcon, ShieldCheckIcon, CheckCircleIcon, XCircleIcon, ClockIcon, BarChart3Icon, BellIcon, SearchIcon, FilterIcon, MoreVerticalIcon, TrendingUpIcon, AlertTriangleIcon, MenuIcon } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
 import { StatsCard } from '../components/features/StatsCard';
@@ -29,6 +30,8 @@ export function AdminDashboard() {
   const [showRejectUserModal, setShowRejectUserModal] = useState(false);
   const [userRejectionReason, setUserRejectionReason] = useState('');
   const [verifyingUser, setVerifyingUser] = useState(false);
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [documentToView, setDocumentToView] = useState<string>('');
   
   // Notification states
   const [showNotificationModal, setShowNotificationModal] = useState(false);
@@ -874,9 +877,11 @@ export function AdminDashboard() {
                       </div>
                     </div>)}
                 </div>
-                <Button variant="outline" fullWidth className="mt-6 border-gray-600 text-gray-300 hover:bg-gray-700">
-                  View Full Report
-                </Button>
+                <Link to="/admin/reports">
+                  <Button variant="outline" fullWidth className="mt-6 border-gray-600 text-gray-300 hover:bg-gray-700">
+                    View Full Report
+                  </Button>
+                </Link>
               </div>
 
               {/* Recent Alerts */}
@@ -1241,6 +1246,41 @@ export function AdminDashboard() {
                 </div>
               </div>
 
+              {/* Verification Document */}
+              {selectedUser.documentPhoto && (
+                <div className="border-t pt-4">
+                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+                    Verification Document
+                  </h4>
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <p className="text-xs text-gray-500 mb-2">
+                      {selectedUser.role === 'hospital' 
+                        ? 'Hospital Registration Certificate'
+                        : 'Citizenship Certificate'}
+                    </p>
+                    <div 
+                      className="relative group cursor-pointer"
+                      onClick={() => {
+                        console.log('Document clicked, opening modal...');
+                        setDocumentToView(selectedUser.documentPhoto);
+                        setShowDocumentModal(true);
+                      }}
+                    >
+                      <img 
+                        src={selectedUser.documentPhoto} 
+                        alt="Verification Document"
+                        className="w-full h-auto rounded-lg border border-gray-300 hover:opacity-90 transition-opacity"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-lg pointer-events-none">
+                        <span className="text-white text-sm font-medium px-4 py-2 bg-black/70 rounded-lg">
+                          Click to view full size
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Account Details */}
               <div className="border-t pt-4">
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
@@ -1468,6 +1508,44 @@ export function AdminDashboard() {
                   disabled={!notificationTitle.trim() || !notificationMessage.trim()}
                 >
                   Send Notification
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Document Viewer Modal */}
+        {showDocumentModal && (
+          <Modal
+            isOpen={showDocumentModal}
+            onClose={() => {
+              setShowDocumentModal(false);
+              setDocumentToView('');
+            }}
+            title="Verification Document - Full Size"
+            size="full"
+          >
+            <div className="space-y-4">
+              <div className="bg-gray-900 rounded-lg p-4 flex items-center justify-center" style={{ minHeight: '60vh' }}>
+                <img 
+                  src={documentToView} 
+                  alt="Full Size Document"
+                  className="max-w-full h-auto rounded-lg shadow-2xl"
+                  style={{ maxHeight: '75vh', objectFit: 'contain' }}
+                />
+              </div>
+              <div className="flex justify-between items-center pt-2">
+                <p className="text-sm text-gray-500">
+                  Click outside the dialog or press ESC to close
+                </p>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setShowDocumentModal(false);
+                    setDocumentToView('');
+                  }}
+                >
+                  Close
                 </Button>
               </div>
             </div>

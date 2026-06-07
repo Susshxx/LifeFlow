@@ -121,6 +121,9 @@ const userSchema = new mongoose.Schema(
     hospitalName:      { type: String, default: "" },
     hospitalRegNumber: { type: String, default: "" },
 
+    // Certificate Number - unique identifier from citizenship/document
+    certificateNumber: { type: String, default: "", sparse: true },
+
     isVerified:    { type: Boolean, default: false },
     verified:      { type: Boolean, default: false }, // Admin verification status
     rejectionReason: { type: String, default: "" },   // Reason if rejected by admin
@@ -153,6 +156,8 @@ userSchema.index({ googleId: 1 });
 userSchema.index({ role: 1, isVerified: 1 });
 userSchema.index({ 'tempLocation.lat': 1, 'tempLocation.lng': 1 });
 userSchema.index({ isVerified: 1, 'tempLocation.lat': 1 });
+// Unique index on certificate number - sparse allows null/empty values
+userSchema.index({ certificateNumber: 1 }, { unique: true, sparse: true });
 
 // ── Password comparison ───────────────────────────────────────────────────────
 userSchema.methods.comparePassword = async function (plain) {

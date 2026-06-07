@@ -3,6 +3,7 @@ import { MailIcon, PhoneIcon, MapPinIcon, SendIcon, CheckCircleIcon, AlertCircle
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import { ReviewForm } from '../components/features/ReviewForm';
 import mascotImg from '../../img.jpeg';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -149,8 +150,9 @@ export function ContactPage() {
             </Card>
           </div>
 
-          {/* Contact Form */}
-          <div className="lg:col-span-2">
+          {/* Contact Form and Review Form */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Contact Form */}
             <Card padding="lg">
               <h2 className="text-2xl font-heading font-bold text-gray-900 mb-6">
                 Send us a Message
@@ -236,6 +238,9 @@ export function ContactPage() {
                 </Button>
               </form>
             </Card>
+
+            {/* Review Form - in the blank space */}
+            <ReviewForm />
           </div>
         </div>
       </div>

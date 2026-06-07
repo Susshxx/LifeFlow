@@ -190,11 +190,17 @@ function MessageBubble({
 
   // Parse blood request info
   let hospitalName = '';
+  let requestId = '';
   if (isBloodRequestNotification) {
     const lines = msg.content.split('\n');
     const hospitalLine = lines.find(l => l.startsWith('Hospital:'));
     if (hospitalLine) {
       hospitalName = hospitalLine.replace('Hospital:', '').trim();
+    }
+    // Try to extract request ID if it exists in the message
+    const requestIdLine = lines.find(l => l.startsWith('RequestID:'));
+    if (requestIdLine) {
+      requestId = requestIdLine.replace('RequestID:', '').trim();
     }
   }
 
@@ -204,6 +210,17 @@ function MessageBubble({
   // Don't render anything for blood request action markers
   if (isBloodRequestAction) {
     return null;
+  }
+
+  // Determine the actual status for THIS specific blood request message
+  // If requestStatus is provided and matches, use it, otherwise check the message content
+  let actualRequestStatus = requestStatus;
+  
+  // Override status to 'fulfilled' or 'closed' if we see completion/cancellation messages
+  // This prevents showing action buttons on old completed requests
+  if (isBloodRequestNotification && !requestStatus) {
+    // Default to 'open' for old messages that don't have tracked status
+    actualRequestStatus = undefined; // Don't show buttons for old messages
   }
 
   return (
@@ -302,10 +319,10 @@ function MessageBubble({
                   </p>
                 </div>
 
-                {(!requestStatus || requestStatus === 'open' || requestStatus === 'pending') &&
-                  onAcceptRequest && onCancelRequest && onCompleteRequest && (
+                {(!actualRequestStatus || actualRequestStatus === 'open' || actualRequestStatus === 'pending') &&
+                  onAcceptRequest && onCancelRequest && onCompleteRequest && requestStatus && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {requestStatus !== 'pending' && (
+                      {actualRequestStatus !== 'pending' && (
                         <>
                           <button
                             onClick={() => onAcceptRequest()}
@@ -334,7 +351,7 @@ function MessageBubble({
                         </>
                       )}
 
-                      {requestStatus === 'pending' && (
+                      {actualRequestStatus === 'pending' && (
                         <>
                           <div style={{
                             padding: '8px 12px', background: '#fef3c7', color: '#92400e',
@@ -359,7 +376,7 @@ function MessageBubble({
                     </div>
                   )}
 
-                {requestStatus === 'fulfilled' && (
+                {actualRequestStatus === 'fulfilled' && (
                   <div style={{
                     padding: '10px 12px', background: '#dcfce7', color: '#166534',
                     borderRadius: 8, fontSize: 13, fontWeight: 600, textAlign: 'center',
@@ -369,7 +386,7 @@ function MessageBubble({
                   </div>
                 )}
 
-                {requestStatus === 'closed' && (
+                {actualRequestStatus === 'closed' && (
                   <div style={{
                     padding: '10px 12px', background: '#fee2e2', color: '#991b1b',
                     borderRadius: 8, fontSize: 13, fontWeight: 600, textAlign: 'center',
@@ -1183,6 +1200,64 @@ export function MessagesPage() {
                         const showDateSeparator =
                           index === 0 || !isSameDay(validPrev[index - 1]?.createdAt ?? msg.createdAt, msg.createdAt);
 
+                        // Check if this is a blood request notification
+                        const isBloodRequestMsg = !isMe && msg.type === 'text' && msg.content && msg.content.includes('BLOOD_REQUEST_NOTIFICATION');
+                        
+                        // Determine the status by checking subsequent messages
+                        let derivedStatus: 'open' | 'pending' | 'fulfilled' | 'closed' | undefined = undefined;
+                        
+                        if (isBloodRequestMsg) {
+                          // Find ALL blood request messages in this conversation
+                          const validMessages = messages.filter(isValidMessage);
+                          const allBloodRequests = validMessages.filter(m => 
+                            !isMe && m.type === 'text' && m.content && m.content.includes('BLOOD_REQUEST_NOTIFICATION')
+                          );
+                          
+                          // Find the LATEST (most recent) blood request message by timestamp
+                          const latestBloodRequest = allBloodRequests.length > 0 
+                            ? allBloodRequests.reduce((latest, current) => 
+                                new Date(current.createdAt) > new Date(latest.createdAt) ? current : latest
+                              )
+                            : null;
+                          
+                          // Check if THIS message is the latest blood request
+                          const isLatestBloodRequest = latestBloodRequest && latestBloodRequest._id === msg._id;
+                          
+                          if (isLatestBloodRequest && bloodRequestInfo) {
+                            // Use the tracked status for the current active request
+                            derivedStatus = bloodRequestStatus;
+                          } else {
+                            // For old messages, check if there's a completion/cancellation message after it
+                            const currentIndex = validMessages.findIndex(m => m._id === msg._id);
+                            const messagesAfter = validMessages.slice(currentIndex + 1);
+                            
+                            // Check for completion message (can be from either user)
+                            const hasCompletionAfter = messagesAfter.some(m => 
+                              m.type === 'text' && m.content && (
+                                m.content.includes('Blood donation completed successfully') ||
+                                m.content.includes('Donation Completed')
+                              )
+                            );
+                            
+                            // Check for cancellation message (can be from either user)
+                            const hasCancellationAfter = messagesAfter.some(m =>
+                              m.type === 'text' && m.content && (
+                                m.content.includes('cannot donate blood at this time') ||
+                                m.content.includes('Request cancelled')
+                              )
+                            );
+                            
+                            if (hasCompletionAfter) {
+                              derivedStatus = 'fulfilled';
+                            } else if (hasCancellationAfter) {
+                              derivedStatus = 'closed';
+                            } else {
+                              // Old message with no resolution - don't show buttons
+                              derivedStatus = undefined;
+                            }
+                          }
+                        }
+
                         return (
                           <div key={msg._id}>
                             {showDateSeparator && (
@@ -1200,7 +1275,7 @@ export function MessagesPage() {
                               onAcceptRequest={handleAcceptRequest}
                               onCancelRequest={handleCancelRequest}
                               onCompleteRequest={handleCompleteRequest}
-                              requestStatus={bloodRequestStatus}
+                              requestStatus={derivedStatus}
                               onOpenMessages={() => navigate('/messages')}
                             />
                           </div>

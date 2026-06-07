@@ -28,7 +28,18 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   const [showPassword, setShowPassword] = useState(false);
   const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
   const isPassword = type === 'password';
+  const isTel = type === 'tel';
   const inputType = isPassword ? showPassword ? 'text' : 'password' : type;
+
+  // Handle phone number input - only allow numbers and limit to 10 digits
+  const handlePhoneInput = (e: React.FormEvent<HTMLInputElement>) => {
+    if (isTel) {
+      const input = e.currentTarget;
+      const value = input.value.replace(/\D/g, ''); // Remove non-digits
+      input.value = value.slice(0, 10); // Limit to 10 digits
+    }
+  };
+
   return <div className="w-full">
         {label && <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 mb-1.5">
             {label}
@@ -37,7 +48,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
           {leftIcon && <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
               {leftIcon}
             </div>}
-          <input ref={ref} id={inputId} type={inputType} className={`
+          <input ref={ref} id={inputId} type={inputType} 
+            onInput={handlePhoneInput}
+            inputMode={isTel ? 'numeric' : undefined}
+            pattern={isTel ? '[0-9]*' : undefined}
+            maxLength={isTel ? 10 : undefined}
+            className={`
               w-full rounded-lg border bg-white
               transition-colors duration-200
               focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent

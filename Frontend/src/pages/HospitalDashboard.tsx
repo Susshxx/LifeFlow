@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DropletIcon, UsersIcon, CalendarIcon, AlertTriangleIcon, PlusIcon, TrendingUpIcon, MessageCircleIcon, UserPlusIcon, EditIcon, TrophyIcon } from 'lucide-react';
+import { DropletIcon, UsersIcon, CalendarIcon, AlertTriangleIcon, PlusIcon, TrendingUpIcon, MessageCircleIcon, UserPlusIcon, EditIcon, TrophyIcon, BellIcon } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
 import { StatsCard } from '../components/features/StatsCard';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/Card';
@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
+import { NotificationPanel } from '../components/features/NotificationPanel';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -49,6 +50,8 @@ export function HospitalDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [connectedDonorsCount, setConnectedDonorsCount] = useState(0);
   const [connectedDonors, setConnectedDonors] = useState<any[]>([]);
   const [donorTokens, setDonorTokens] = useState<Record<string, number>>({});
@@ -180,6 +183,58 @@ export function HospitalDashboard() {
     
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch unread notification count
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      const token = localStorage.getItem('lf_token');
+      if (!token) return;
+
+      try {
+        const res = await fetch(`${API}/api/notifications/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.count);
+        }
+      } catch (err) {
+        console.error('[HospitalDashboard] Failed to fetch unread count:', err);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleNotificationOpen = () => {
+    setShowNotifications(true);
+  };
+
+  const handleNotificationClose = () => {
+    setShowNotifications(false);
+    // Refresh unread count when closing
+    const fetchUnreadCount = async () => {
+      const token = localStorage.getItem('lf_token');
+      if (!token) return;
+
+      try {
+        const res = await fetch(`${API}/api/notifications/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.count);
+        }
+      } catch (err) {
+        console.error('[HospitalDashboard] Failed to fetch unread count:', err);
+      }
+    };
+    fetchUnreadCount();
+  };
 
   const fetchConnectionStats = async () => {
     try {
@@ -425,6 +480,20 @@ export function HospitalDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Notification Bell */}
+              <button
+                onClick={handleNotificationOpen}
+                className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Notifications"
+              >
+                <BellIcon className="w-5 h-5 text-gray-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-white text-xs font-bold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              
               <Button variant="outline" leftIcon={<CalendarIcon className="w-4 h-4" />} onClick={() => navigate('/hospital/camps')}>
                 Manage Camps
               </Button>
@@ -922,6 +991,12 @@ export function HospitalDashboard() {
           </div>
         </div>
       </Modal>
+
+      {/* Notification Panel */}
+      <NotificationPanel 
+        isOpen={showNotifications} 
+        onClose={handleNotificationClose} 
+      />
     </div>
   );
 }

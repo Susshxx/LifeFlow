@@ -103,8 +103,7 @@ function exchangeCodeForTokens(code) {
   return new Promise((resolve, reject) => {
     const CALLBACK_URL =
       process.env.GOOGLE_CALLBACK_URL ||
-      // "http://localhost:5000/api/auth/google/callback";
-      "https://lifeflow1.onrender.com/api/auth/google/callback";
+      "http://localhost:5000/api/auth/google/callback";
 
 
     const body = new URLSearchParams({
@@ -194,8 +193,7 @@ function sendRedirectPage(res, destination, label = "Redirecting…") {
 router.get("/google", (req, res) => {
   const CALLBACK_URL =
     process.env.GOOGLE_CALLBACK_URL ||
-    // "http://localhost:5000/api/auth/google/callback";
-    "https://lifeflow1.onrender.com/api/auth/google/callback";
+    "http://localhost:5000/api/auth/google/callback";
     
 
   const params = new URLSearchParams({
@@ -212,7 +210,8 @@ router.get("/google", (req, res) => {
 
 // ── GET /api/auth/google/callback ─────────────────────────────────────────────
 router.get("/google/callback", async (req, res) => {
-  const FRONTEND_URL = process.env.FRONTEND_URL || "https://lifeflow-uj6d.onrender.com";
+  // const FRONTEND_URL = process.env.FRONTEND_URL || "https://lifeflow-uj6d.onrender.com";
+  const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
   const { code, error, error_description } = req.query;
 
   console.log("\n[Google OAuth] ========== CALLBACK START ==========");
@@ -330,6 +329,84 @@ router.get("/debug", (req, res) => {
   });
 });
 
+// ── POST /api/auth/check-hospital-duplicate ──────────────────────────────────
+// Check if hospital name or certificate number already exists
+// Called during OCR verification step to prevent duplicate registrations early
+router.post("/check-hospital-duplicate", checkDBConnection, async (req, res) => {
+  try {
+    const { hospitalName, certificateNumber, documentPhoto } = req.body;
+
+    if (!hospitalName && !certificateNumber && !documentPhoto) {
+      return res.status(400).json({ error: "Hospital name, certificate number, or document photo is required." });
+    }
+
+    const duplicates = {
+      nameExists: false,
+      certificateExists: false,
+      documentExists: false,
+      message: ""
+    };
+
+    // Check for duplicate hospital name (case-insensitive)
+    if (hospitalName) {
+      const dupName = await User.findOne({ 
+        name: { $regex: new RegExp(`^${String(hospitalName).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
+        role: "hospital" 
+      });
+      if (dupName) {
+        duplicates.nameExists = true;
+        duplicates.message = "A hospital with this name already exists in our system.";
+      }
+    }
+
+    // Check for duplicate certificate number
+    if (certificateNumber) {
+      const dupCert = await User.findOne({ 
+        hospitalRegNumber: String(certificateNumber).trim(),
+        role: "hospital" 
+      });
+      if (dupCert) {
+        duplicates.certificateExists = true;
+        duplicates.message = duplicates.nameExists 
+          ? "A hospital with this name and certificate number already exists in our system."
+          : "A hospital with this certificate number already exists in our system.";
+      }
+    }
+
+    // Check for duplicate document photo
+    if (documentPhoto && typeof documentPhoto === "string" && documentPhoto.length > 100) {
+      const dupDoc = await User.findOne({ 
+        documentPhoto: documentPhoto,
+        role: "hospital" 
+      });
+      if (dupDoc) {
+        duplicates.documentExists = true;
+        if (!duplicates.message) {
+          duplicates.message = "This verification document has already been used for another hospital registration.";
+        }
+      }
+    }
+
+    // If any duplicate found, return error
+    if (duplicates.nameExists || duplicates.certificateExists || duplicates.documentExists) {
+      return res.status(409).json({ 
+        error: duplicates.message,
+        duplicates 
+      });
+    }
+
+    // No duplicates found
+    return res.json({ 
+      success: true, 
+      message: "No duplicates found. You can proceed with registration." 
+    });
+
+  } catch (err) {
+    console.error("Check hospital duplicate error:", err.message);
+    return res.status(500).json({ error: "Failed to check for duplicates." });
+  }
+});
+
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 router.post("/register", checkDBConnection, async (req, res) => {
   try {
@@ -338,6 +415,7 @@ router.post("/register", checkDBConnection, async (req, res) => {
       bloodGroup, phone, province, district, municipality,
       dobDay, dobMonth, dobYear,
       hospitalName, hospitalRegNumber,
+      certificateNumber, // NEW: Certificate number from OCR
       documentPhoto,
       // tempLocation: { lat, lng, label }
       tempLocation,
@@ -357,15 +435,55 @@ router.post("/register", checkDBConnection, async (req, res) => {
     if (exists)
       return res.status(409).json({ error: "An account with this email already exists." });
 
-    // Duplicate document check
-    if (role === "hospital" && hospitalRegNumber) {
-      const dup = await User.findOne({ hospitalRegNumber: String(hospitalRegNumber).trim(), role: "hospital" });
-      if (dup)
-        return res.status(409).json({ error: "A hospital with this registration number already exists." });
+    // Check certificate number for BOTH users and hospitals
+    if (certificateNumber && String(certificateNumber).trim()) {
+      const dupCertificate = await User.findOne({ 
+        certificateNumber: String(certificateNumber).trim()
+      });
+      if (dupCertificate) {
+        return res.status(409).json({ 
+          error: "This certificate number has already been used for another account. Please verify your document." 
+        });
+      }
     }
+
+    // Duplicate document check for hospitals - check against OCR-extracted name (stored in 'name' field)
+    if (role === "hospital") {
+      // Check registration number (certificate number from OCR)
+      if (hospitalRegNumber) {
+        const dupRegNum = await User.findOne({ 
+          hospitalRegNumber: String(hospitalRegNumber).trim(), 
+          role: "hospital" 
+        });
+        if (dupRegNum)
+          return res.status(409).json({ error: "A hospital with this registration certificate number already exists." });
+      }
+      
+      // Check hospital name (OCR-extracted name stored in 'name' field) - case-insensitive
+      if (name) {
+        const dupName = await User.findOne({ 
+          name: { $regex: new RegExp(`^${String(name).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
+          role: "hospital" 
+        });
+        if (dupName)
+          return res.status(409).json({ error: "A hospital with this name already exists. This name was extracted from your certificate." });
+      }
+      
+      // Check for duplicate document photo
+      if (documentPhoto && typeof documentPhoto === "string" && documentPhoto.length > 100) {
+        const dupDoc = await User.findOne({ 
+          documentPhoto: documentPhoto,
+          role: "hospital" 
+        });
+        if (dupDoc)
+          return res.status(409).json({ error: "This verification document has already been used. Please upload a different document." });
+      }
+    }
+    
+    // Duplicate check for regular users
     if (role === "user" && dobDay && dobMonth && dobYear && phone) {
       const dup = await User.findOne({
-        name:     { $regex: new RegExp(`^${String(name).trim()}$`, "i") },
+        name:     { $regex: new RegExp(`^${String(name).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i") },
         phone:    String(phone).trim(),
         dobDay:   String(dobDay),
         dobMonth: String(dobMonth),
@@ -404,6 +522,7 @@ router.post("/register", checkDBConnection, async (req, res) => {
       dobYear:           dobYear           ? String(dobYear)           : "",
       hospitalName:      hospitalName      ? String(hospitalName)      : "",
       hospitalRegNumber: hospitalRegNumber ? String(hospitalRegNumber) : "",
+      certificateNumber: certificateNumber ? String(certificateNumber).trim() : "", // NEW
       documentPhoto:     safePhoto,
       // Use the document photo as avatar if no other avatar is set
       avatar:            safePhoto ? safePhoto : "",
@@ -417,8 +536,13 @@ router.post("/register", checkDBConnection, async (req, res) => {
 
   } catch (err) {
     console.error("Register error:", err.message);
-    if (err.code === 11000)
+    if (err.code === 11000) {
+      // Check which field caused the duplicate
+      if (err.message.includes('certificateNumber')) {
+        return res.status(409).json({ error: "This certificate number has already been used for another account." });
+      }
       return res.status(409).json({ error: "An account with this email already exists." });
+    }
     if (err.name === "ValidationError") {
       const msg = Object.values(err.errors)[0]?.message || "Validation failed.";
       return res.status(400).json({ error: msg });
@@ -433,7 +557,9 @@ router.post("/register-google", checkDBConnection, async (req, res) => {
     const {
       googleId, name, email, avatar,
       bloodGroup, phone, province, district, municipality,
-      dobDay, dobMonth, dobYear, documentPhoto,
+      dobDay, dobMonth, dobYear, 
+      certificateNumber, // NEW: Certificate number from OCR
+      documentPhoto,
       tempLocation,
     } = req.body;
 
@@ -442,6 +568,18 @@ router.post("/register-google", checkDBConnection, async (req, res) => {
     if (!bloodGroup)                   return res.status(400).json({ error: "Blood group is required." });
     if (!province || !district || !municipality)
       return res.status(400).json({ error: "Province, district, and municipality are required." });
+
+    // Check certificate number duplication
+    if (certificateNumber && String(certificateNumber).trim()) {
+      const dupCertificate = await User.findOne({ 
+        certificateNumber: String(certificateNumber).trim()
+      });
+      if (dupCertificate) {
+        return res.status(409).json({ 
+          error: "This certificate number has already been used for another account. Please verify your document." 
+        });
+      }
+    }
 
     const safePhoto =
       documentPhoto && typeof documentPhoto === "string" && documentPhoto.length <= 2_000_000
@@ -481,6 +619,8 @@ router.post("/register-google", checkDBConnection, async (req, res) => {
       user.dobMonth     = dobMonth || user.dobMonth;
       user.dobYear      = dobYear  || user.dobYear;
       user.isVerified   = true;
+      // Update certificate number if provided
+      if (certificateNumber) user.certificateNumber = String(certificateNumber).trim();
       // Document photo becomes avatar if no avatar yet
       if (safePhoto) {
         user.documentPhoto = safePhoto;
@@ -497,6 +637,7 @@ router.post("/register-google", checkDBConnection, async (req, res) => {
         avatar: safePhoto || avatar || "",
         bloodGroup, phone, province, district, municipality,
         dobDay: dobDay || "", dobMonth: dobMonth || "", dobYear: dobYear || "",
+        certificateNumber: certificateNumber ? String(certificateNumber).trim() : "", // NEW
         documentPhoto: safePhoto,
         isVerified:    true,
         tempLocation:  safeTempLocation,
@@ -607,6 +748,93 @@ router.get("/users/:userId/last-donation", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("Failed to fetch last donation:", err);
     return res.status(500).json({ error: "Failed to fetch last donation." });
+  }
+});
+
+// ── POST /api/auth/forgot-password ───────────────────────────────────────────
+// Step 1: Verify email exists and has password (not Google OAuth only)
+router.post("/forgot-password", checkDBConnection, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !String(email).trim()) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      // Don't reveal if email exists or not for security
+      return res.json({ 
+        success: true, 
+        message: "If an account exists with this email, you will receive a password reset code.",
+        hasPassword: false
+      });
+    }
+
+    // Check if user has a password (not Google OAuth only account)
+    if (!user.password) {
+      return res.status(400).json({ 
+        error: "This account uses Google Sign-In. Please sign in with Google instead.",
+        isGoogleAccount: true
+      });
+    }
+
+    // Return success (frontend will handle OTP generation and sending)
+    return res.json({ 
+      success: true, 
+      hasPassword: true,
+      message: "Account verified. You can proceed with password reset."
+    });
+
+  } catch (err) {
+    console.error("Forgot password error:", err.message);
+    return res.status(500).json({ error: "Failed to process request." });
+  }
+});
+
+// ── POST /api/auth/reset-password ────────────────────────────────────────────
+// Step 2: Reset password after OTP verification (handled on frontend)
+router.post("/reset-password", checkDBConnection, async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !String(email).trim()) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+
+    if (!newPassword || String(newPassword).length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters." });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+
+    // Check if user has a password field (not Google OAuth only)
+    if (!user.password) {
+      return res.status(400).json({ 
+        error: "This account uses Google Sign-In and cannot have a password reset.",
+        isGoogleAccount: true
+      });
+    }
+
+    // Update password (will be hashed by pre-save hook)
+    user.password = String(newPassword);
+    await user.save();
+
+    return res.json({ 
+      success: true, 
+      message: "Password has been reset successfully. You can now sign in with your new password."
+    });
+
+  } catch (err) {
+    console.error("Reset password error:", err.message);
+    return res.status(500).json({ error: "Failed to reset password." });
   }
 });
 

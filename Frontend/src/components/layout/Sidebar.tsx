@@ -554,14 +554,15 @@ export function Sidebar({
           {navItems.map((item) => {
             const isActive = location.pathname === item.href;
 
+            // Determine badge count for this menu item
             let badge = item.badge;
             if (
               item.href === '/dashboard/chat' ||
               item.href === '/hospital/chat'
             ) {
-              badge = unreadMessageUsers;
+              badge = unreadMessageUsers > 0 ? unreadMessageUsers : undefined;
             } else if (item.href === '/hospital/requests') {
-              badge = bloodRequestsCount;
+              badge = bloodRequestsCount > 0 ? bloodRequestsCount : undefined;
             }
 
             return (

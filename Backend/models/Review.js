@@ -9,7 +9,8 @@ const reviewSchema = new mongoose.Schema(
     rating: { type: Number, required: true, min: 1, max: 5 },
     content: { type: String, required: true, trim: true },
     location: { type: String, default: "" },
-    approved: { type: Boolean, default: true }, // auto-approve for now
+    approved: { type: Boolean, default: true }, 
+    featured: { type: Boolean, default: false }, 
   },
   { timestamps: true }
 );

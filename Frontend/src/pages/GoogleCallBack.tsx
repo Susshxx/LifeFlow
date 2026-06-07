@@ -79,7 +79,7 @@
 //   );
 // }
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -88,8 +88,13 @@ export function GoogleCallback() {
   const navigate = useNavigate();
   const location = useLocation();
   const [status, setStatus] = useState('Completing sign-in…');
+  const hasExchanged = useRef(false);
 
   useEffect(() => {
+    // Prevent duplicate exchanges (React StrictMode double-render)
+    if (hasExchanged.current) return;
+    hasExchanged.current = true;
+
     const params = new URLSearchParams(location.search);
     const code   = params.get('code');
     const error  = params.get('error');
@@ -113,12 +118,23 @@ export function GoogleCallback() {
         setStatus('Verifying Google account…');
 
         const res = await fetch(
-          `${API}/api/auth/google/exchange?code=${encodeURIComponent(code)}`
+          `${API}/api/auth/google/exchange?code=${encodeURIComponent(code)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+            },
+          }
         );
 
         const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
+          // Silently redirect on 404 or code errors without console errors
+          if (res.status === 404 || data?.error?.includes('Code not found')) {
+            navigate('/login?error=google_failed', { replace: true });
+            return;
+          }
           throw new Error(data?.error || `Exchange failed (${res.status})`);
         }
 
@@ -142,7 +158,10 @@ export function GoogleCallback() {
           navigate('/', { replace: true });
         }
       } catch (err: any) {
-        console.error('Google exchange error:', err.message);
+        // Only log non-404 errors
+        if (!err.message?.includes('404') && !err.message?.includes('Code not found')) {
+          console.error('Google exchange error:', err.message);
+        }
         setStatus('Sign-in failed. Redirecting…');
         setTimeout(() => navigate('/login?error=google_failed', { replace: true }), 800);
       }

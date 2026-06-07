@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { SearchIcon, HeartIcon, UsersIcon, ShieldCheckIcon, ArrowRightIcon, DropletIcon, MapPinIcon, CalendarIcon, TrendingUpIcon, AwardIcon } from 'lucide-react';
+import { SearchIcon, HeartIcon, UsersIcon, ShieldCheckIcon, ArrowRightIcon, DropletIcon, MapPinIcon, CalendarIcon, TrendingUpIcon, AwardIcon, StarIcon } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { SearchBar } from '../components/features/SearchBar';
 import { EmergencyBanner } from '../components/features/EmergencyBanner';
@@ -78,30 +78,14 @@ const dummyCamps = [{
   maxCapacity: 200,
   status: 'upcoming' as const
 }];
-const testimonials = [{
-  name: 'Ram Bahadur Thapa',
-  role: 'donor' as const,
-  location: 'Kathmandu',
-  content: 'Donating blood through LifeFlow was incredibly easy. The platform connected me with a hospital just 2km away, and I was able to help save a life within hours of registering.',
-  rating: 5
-}, {
-  name: 'Sita Sharma',
-  role: 'recipient' as const,
-  location: 'Pokhara',
-  content: 'When my father needed emergency blood transfusion, LifeFlow helped us find 3 compatible donors within 30 minutes. This platform truly saves lives.',
-  rating: 5
-}, {
-  name: 'Dr. Prakash Adhikari',
-  role: 'donor' as const,
-  location: 'Lalitpur',
-  content: 'As a healthcare professional, I appreciate how LifeFlow has streamlined the blood donation process. The verification system ensures safety for both donors and recipients.',
-  rating: 5
-}];
+
 export function HomePage() {
   const navigate = useNavigate();
   const [camps, setCamps] = useState<any[]>([]);
   const [loadingCamps, setLoadingCamps] = useState(true);
   const [debugInfo, setDebugInfo] = useState<string>('');
+  const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
 
   // Redirect hospitals to their dashboard - they shouldn't access home page
   useEffect(() => {
@@ -210,6 +194,68 @@ export function HomePage() {
 
     fetchCamps();
   }, []); // Only run once on mount - removed isLoggedIn dependency to prevent glitching
+
+  // Fetch reviews for testimonials section
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        setLoadingReviews(true);
+        
+        // First, try to get featured reviews (admin-selected)
+        const featuredRes = await fetch(`${API}/api/reviews/featured`);
+        
+        if (featuredRes.ok) {
+          const featuredData = await featuredRes.json();
+          console.log('📦 Fetched featured reviews:', featuredData);
+          
+          // If we have featured reviews, use them
+          if (featuredData.length > 0) {
+            setTestimonials(featuredData);
+            return;
+          }
+        }
+        
+        // Fallback: If no featured reviews, use 5-star + 4-star logic
+        const fiveStarRes = await fetch(`${API}/api/reviews/five-star`);
+        
+        if (fiveStarRes.ok) {
+          const fiveStarData = await fiveStarRes.json();
+          console.log('📦 Fetched 5-star reviews:', fiveStarData);
+          
+          // If we have 3 or more 5-star reviews, use them
+          if (fiveStarData.length >= 3) {
+            setTestimonials(fiveStarData.slice(0, 3));
+          } else {
+            // If less than 3 5-star reviews, fetch 4-star reviews to fill
+            console.log('📦 Less than 3 five-star reviews, fetching 4-star reviews...');
+            const fourStarRes = await fetch(`${API}/api/reviews/four-star`);
+            
+            if (fourStarRes.ok) {
+              const fourStarData = await fourStarRes.json();
+              console.log('📦 Fetched 4-star reviews:', fourStarData);
+              
+              // Combine 5-star and 4-star reviews, limit to 3 total
+              const combined = [...fiveStarData, ...fourStarData].slice(0, 3);
+              setTestimonials(combined);
+            } else {
+              // Just use whatever 5-star reviews we have
+              setTestimonials(fiveStarData);
+            }
+          }
+        } else {
+          console.error('Failed to fetch reviews:', fiveStarRes.status);
+          setTestimonials([]);
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch reviews:', error);
+        setTestimonials([]);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+
+    fetchReviews();
+  }, []);
 
   const handleSearch = (filters: any) => {
     // Build query params from filters
@@ -555,13 +601,106 @@ export function HomePage() {
               Stories That Inspire
             </h2>
             <p className="mt-4 text-lg text-gray-600 max-w-2xl mx-auto">
-              Real stories from donors and recipients across Nepal
+              Top reviews from donors and recipients across Nepal
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => <TestimonialCard key={index} {...testimonial} />)}
-          </div>
+          {loadingReviews ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : testimonials.length > 0 ? (
+            <div className={testimonials.length > 3 ? "relative" : ""}>
+              {testimonials.length > 3 ? (
+                // Scrollable carousel for more than 3 reviews
+                <div 
+                  className="flex gap-6 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
+                  style={{
+                    scrollBehavior: 'smooth',
+                    WebkitOverflowScrolling: 'touch',
+                  }}
+                >
+                  {testimonials.map((testimonial, index) => {
+                    const capitalizeWords = (str: string) => {
+                      return str
+                        .toLowerCase()
+                        .split(' ')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join(' ');
+                    };
+                    
+                    const formattedLocation = testimonial.location 
+                      ? capitalizeWords(testimonial.location)
+                      : 'Nepal';
+                    
+                    return (
+                      <div key={testimonial._id || index} className="flex-shrink-0 w-full md:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] snap-start">
+                        <TestimonialCard 
+                          name={testimonial.userName || testimonial.name}
+                          role={testimonial.role || 'donor'}
+                          location={formattedLocation}
+                          content={testimonial.content}
+                          rating={testimonial.rating}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Grid for 3 or fewer reviews
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {testimonials.map((testimonial, index) => {
+                    const capitalizeWords = (str: string) => {
+                      return str
+                        .toLowerCase()
+                        .split(' ')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join(' ');
+                    };
+                    
+                    const formattedLocation = testimonial.location 
+                      ? capitalizeWords(testimonial.location)
+                      : 'Nepal';
+                    
+                    return (
+                      <TestimonialCard 
+                        key={testimonial._id || index} 
+                        name={testimonial.userName || testimonial.name}
+                        role={testimonial.role || 'donor'}
+                        location={formattedLocation}
+                        content={testimonial.content}
+                        rating={testimonial.rating}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+              
+              {/* Scroll indicator for carousel */}
+              {testimonials.length > 3 && (
+                <p className="text-center text-sm text-gray-500 mt-4">
+                  ← Scroll to see more reviews →
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 mb-4">
+                <StarIcon className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                No Reviews Yet
+              </h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Be the first to share your inspiring experience with LifeFlow! Your review will be featured here.
+              </p>
+              <Link to="/contact">
+                <Button>
+                  Leave a Review
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 
