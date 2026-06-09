@@ -137,9 +137,10 @@ const userSchema = new mongoose.Schema(
     // Set during registration; shown as a yellow pin on the search map.
     // Users can update this later from their profile settings.
     tempLocation: {
-      lat:   { type: Number, default: null },
-      lng:   { type: Number, default: null },
-      label: { type: String, default: ""   },
+      lat:     { type: Number, default: null },
+      lng:     { type: Number, default: null },
+      label:   { type: String, default: ""   },
+      address: { type: String, default: ""   }, // Geocoded address (e.g., "Samakushi, Kathmandu")
     },
   },
   { timestamps: true }

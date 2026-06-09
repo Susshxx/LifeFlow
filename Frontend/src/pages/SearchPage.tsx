@@ -1490,27 +1490,35 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
 // ── Smart label for list cards (no API call needed) ───────────────────────────
 // Shows the most useful short string available without hitting any API.
 function smartLocationLabel(
-  tempLocation: { lat?: number; lng?: number; label?: string } | undefined,
+  tempLocation: { lat?: number; lng?: number; label?: string; address?: string } | undefined,
   municipality?: string,
   district?: string
 ): string {
-  // Only use label if it looks like a real place name (not a ward number or generic term)
-  if (tempLocation?.label) {
-    const label = tempLocation.label.trim();
-    // Reject pure numbers, very short strings, or generic single words
-    if (label.length > 5 && !/^\d+$/.test(label) && !['home', 'work', 'location', 'here'].includes(label.toLowerCase())) {
-      return label;
-    }
+  // Priority 1: Use stored geocoded address if available
+  if (tempLocation?.address && tempLocation.address.trim().length > 0) {
+    return tempLocation.address;
   }
-  // Prefer municipality over district — it's more specific
+  
+  // Priority 2: Use municipality or district
   if (municipality && municipality.trim().length > 2 && !/^\d+$/.test(municipality)) {
     return municipality;
   }
   if (district && district.trim().length > 2 && !/^\d+$/.test(district)) {
     return district;
   }
-  return 'Nepal';
+  
+  // Priority 3: Only use label if it looks like a real place name
+  if (tempLocation?.label) {
+    const label = tempLocation.label.trim();
+    if (label.length > 5 && !/^\d+$/.test(label) && !['home', 'work', 'location', 'here'].includes(label.toLowerCase())) {
+      return label;
+    }
+  }
+  
+  // Fallback
+  return 'Kathmandu, Nepal';
 }
+ 
 
 
 //Icon Factories
