@@ -1453,28 +1453,40 @@ L.Icon.Default.mergeOptions({
 // ── Reverse geocode helper (lazy, single call) ────────────────────────────────
 // Returns a short "Neighbourhood, City" string from coordinates.
 // Only called when a dialog opens — never in bulk.
+// async function reverseGeocode(lat: number, lng: number): Promise<string> {
+//   try {
+//     const res = await fetch(`${API}/api/geocode/reverse?lat=${lat}&lon=${lng}`);
+//     if (!res.ok) return '';
+//     const data = await res.json();
+//     // Handle the graceful error fallback from the backend
+//     if (data._geocodeError) return '';
+//     const a = data.address || {};
+//     const parts: string[] = [
+//       a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.road,
+//       a.city || a.town || a.municipality || a.county,
+//     ].filter(Boolean) as string[];
+//     if (parts.length) return parts.join(', ');
+//     return data.display_name?.split(',').slice(0, 2).join(',').trim() || '';
+//   } catch {
+//     return '';
+//   }
+// }
+
+
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
-      { headers: { 'User-Agent': 'LifeFlow Blood Donation App' } }
-    );
-    if (!res.ok) throw new Error('nominatim failed');
+    const res = await fetch(`${API}/api/geocode/reverse?lat=${lat}&lon=${lng}`);
+    if (!res.ok) return '';
     const data = await res.json();
-    const a = data.address || {};
-    // Build a short, readable address: "Neighbourhood, City"
-    const parts: string[] = [
-      a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.road,
-      a.city || a.town || a.municipality || a.county,
-    ].filter(Boolean) as string[];
-    if (parts.length) return parts.join(', ');
-    // Fallback: first two comma-parts of display_name
+    if (data._geocodeError) return '';
+    // Backend pre-builds the Nepali label — use it directly
+    if (data._label && data._label.trim().length > 0) return data._label;
+    // Fallback: parse display_name which is already in Nepali when backend sends ne lang
     return data.display_name?.split(',').slice(0, 2).join(',').trim() || '';
   } catch {
     return '';
   }
 }
-
 // ── Smart label for list cards (no API call needed) ───────────────────────────
 // Shows the most useful short string available without hitting any API.
 function smartLocationLabel(
@@ -1482,17 +1494,21 @@ function smartLocationLabel(
   municipality?: string,
   district?: string
 ): string {
-  if (!tempLocation) return municipality || district || 'Nepal';
-  const { label, lat, lng } = tempLocation;
-  // If user gave a meaningful custom label (not just "Home"), use it
-  if (label && label.trim().toLowerCase() !== 'home' && label.trim().length > 3) {
-    return label.trim();
+  // Only use label if it looks like a real place name (not a ward number or generic term)
+  if (tempLocation?.label) {
+    const label = tempLocation.label.trim();
+    // Reject pure numbers, very short strings, or generic single words
+    if (label.length > 5 && !/^\d+$/.test(label) && !['home', 'work', 'location', 'here'].includes(label.toLowerCase())) {
+      return label;
+    }
   }
-  // Fall back to municipality or district stored in user profile
-  if (municipality) return municipality;
-  if (district) return district;
-  // Last resort: coords
-  if (lat && lng) return `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+  // Prefer municipality over district — it's more specific
+  if (municipality && municipality.trim().length > 2 && !/^\d+$/.test(municipality)) {
+    return municipality;
+  }
+  if (district && district.trim().length > 2 && !/^\d+$/.test(district)) {
+    return district;
+  }
   return 'Nepal';
 }
 
@@ -2156,11 +2172,6 @@ export function SearchPage() {
         const user = JSON.parse(userStr);
         if (user.role === 'hospital') {
           navigate('/hospital/dashboard', { replace: true });
-          return;
-        }
-        if (user.role === 'admin') {
-          navigate('/admin/dashboard', { replace: true });
-          return;
         }
       }
     } catch (error) {
@@ -2347,23 +2358,88 @@ export function SearchPage() {
   }, [fetchBloodRequests]);
 
   // ── Fetch connection statuses ──────────────────────────────────────────
-  useEffect(() => {
-    if (!mapUsers.length) return;
-    const token = localStorage.getItem('lf_token');
-    if (!token) return;
-    Promise.all(
-      mapUsers.filter(u => u._id !== myId).map(u =>
-        fetch(`${API}/api/connections/status/${u._id}`, { headers: { Authorization: `Bearer ${token}` } })
-          .then(r => r.ok ? r.json() : { status: 'none' })
-          .then(data => ({ userId: u._id, status: data.status }))
-          .catch(() => ({ userId: u._id, status: 'none' }))
-      )
-    ).then(results => {
-      const map: Record<string, string> = {};
-      results.forEach(({ userId, status }) => { map[userId] = status; });
-      setConnStatuses(map);
-    });
-  }, [mapUsers, myId]);
+  // useEffect(() => {
+  //   if (!mapUsers.length) return;
+  //   const token = localStorage.getItem('lf_token');
+  //   if (!token) return;
+  //   Promise.all(
+  //     mapUsers.filter(u => u._id !== myId).map(u =>
+  //       fetch(`${API}/api/connections/status/${u._id}`, { headers: { Authorization: `Bearer ${token}` } })
+  //         .then(r => r.ok ? r.json() : { status: 'none' })
+  //         .then(data => ({ userId: u._id, status: data.status }))
+  //         .catch(() => ({ userId: u._id, status: 'none' }))
+  //     )
+  //   ).then(results => {
+  //     const map: Record<string, string> = {};
+  //     results.forEach(({ userId, status }) => { map[userId] = status; });
+  //     setConnStatuses(map);
+  //   });
+  // }, [mapUsers, myId]);
+
+  // ── Fetch connection statuses ──────────────────────────────────────────
+useEffect(() => {
+  if (!mapUsers.length) return;
+  const token = localStorage.getItem('lf_token');
+  if (!token) return;
+  Promise.all(
+    mapUsers.filter(u => u._id !== myId).map(u =>
+      fetch(`${API}/api/connections/status/${u._id}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : { status: 'none' })
+        .then(data => ({ userId: u._id, status: data.status }))
+        .catch(() => ({ userId: u._id, status: 'none' }))
+    )
+  ).then(results => {
+    const map: Record<string, string> = {};
+    results.forEach(({ userId, status }) => { map[userId] = status; });
+    setConnStatuses(map);
+  });
+}, [mapUsers, myId]);
+
+// ── Batch geocode all donors/hospitals in one request ─────────────────────
+useEffect(() => {
+  if (!mapUsers.length) return;
+
+  const targets = mapUsers
+    .filter(u => u._id !== myId && u.tempLocation?.lat && u.tempLocation?.lng)
+    .map(u => ({ id: u._id, lat: u.tempLocation.lat, lon: u.tempLocation.lng, role: u.role }));
+
+  if (!targets.length) return;
+
+  const fetchBatch = async () => {
+    try {
+      const token = localStorage.getItem('lf_token');
+      const res = await fetch(`${API}/api/geocode/batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(targets.map(({ id, lat, lon }) => ({ id, lat, lon }))),
+      });
+
+      if (!res.ok) return;
+      const data: Record<string, string> = await res.json();
+
+      const newDonorAddresses: Record<string, string> = {};
+      const newHospitalAddresses: Record<string, string> = {};
+
+      targets.forEach(({ id, role }) => {
+        const addr = data[id];
+        if (addr && addr.trim().length > 0) {
+          if (role === 'user') newDonorAddresses[id] = addr;
+          else newHospitalAddresses[id] = addr;
+        }
+      });
+
+      setDonorAddresses(prev => ({ ...prev, ...newDonorAddresses }));
+      setHospitalAddresses(prev => ({ ...prev, ...newHospitalAddresses }));
+    } catch (err) {
+      console.error('Batch geocode failed:', err);
+    }
+  };
+
+  fetchBatch();
+}, [mapUsers, myId]);
 
   // ── Fetch hospital inventory when selected ────────────────────────────
   useEffect(() => {
@@ -2505,33 +2581,43 @@ export function SearchPage() {
       const donors = mapUsers.filter(u => u.role === 'user' && u._id !== myId);
       const hospitals = mapUsers.filter(u => u.role === 'hospital');
       
+      console.log(`Starting address fetch for ${donors.length} donors and ${hospitals.length} hospitals`);
+      
       // Fetch addresses one by one with delay to avoid rate limiting
       for (const user of [...donors, ...hospitals]) {
-        if (!user.tempLocation?.lat || !user.tempLocation?.lng) continue;
+        if (!user.tempLocation?.lat || !user.tempLocation?.lng) {
+          console.log(`Skipping user ${user._id} - no coordinates`);
+          continue;
+        }
         
-        // Skip if already fetched
-        if (user.role === 'user' && donorAddresses[user._id]) continue;
-        if (user.role === 'hospital' && hospitalAddresses[user._id]) continue;
-        
-        const address = await reverseGeocode(user.tempLocation.lat, user.tempLocation.lng);
-        
-        if (address) {
-          if (user.role === 'user') {
-            setDonorAddresses(prev => ({ ...prev, [user._id]: address }));
+        try {
+          const address = await reverseGeocode(user.tempLocation.lat, user.tempLocation.lng);
+          
+          if (address && address.trim().length > 0 && address !== 'Fetching location...') {
+            console.log(`✓ Fetched address for user ${user._id}: ${address}`);
+            if (user.role === 'user') {
+              setDonorAddresses(prev => ({ ...prev, [user._id]: address }));
+            } else {
+              setHospitalAddresses(prev => ({ ...prev, [user._id]: address }));
+            }
           } else {
-            setHospitalAddresses(prev => ({ ...prev, [user._id]: address }));
+            console.warn(`Empty or invalid address returned for user ${user._id}`);
           }
+        } catch (error) {
+          console.error(`Failed to fetch address for user ${user._id}:`, error);
         }
         
         // Wait 1 second between requests to respect rate limits
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
+      
+      console.log('Address fetching complete');
     };
     
     if (mapUsers.length > 0) {
       fetchAddresses();
     }
-  }, [mapUsers, myId]);
+  }, [mapUsers, myId]); 
 
   // ── Event listeners ────────────────────────────────────────────────────
   useEffect(() => {

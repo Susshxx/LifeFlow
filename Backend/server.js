@@ -94,6 +94,7 @@ const userRoutes = require("./routes/userRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const bloodInventoryRoutes = require("./routes/bloodInventoryRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const geocodeRoutes = require("./routes/geocodeRoutes");
 
 
 // API Routes
@@ -111,6 +112,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/blood-inventory", bloodInventoryRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/geocode", geocodeRoutes);
 
 
 // ─────────────────────────────────────────────────────────────
