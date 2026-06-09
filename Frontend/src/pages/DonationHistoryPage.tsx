@@ -382,6 +382,7 @@ export function DonationHistoryPage() {
             </div>
           </Card>
         )}
+        </>
         )}
       </div>
     </main>
