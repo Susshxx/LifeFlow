@@ -38,17 +38,25 @@ import 'leaflet/dist/leaflet.css';
 import { HospitalDonationHistoryPage } from './pages/HospitalDonationHistoryPage';
 import { AdminSettingsPage } from './pages/AdminSettingsPage';
 import { ReportsAnalyticsPage } from './pages/ReportsAnalyticsPage';
+import { DataCacheProvider } from './contexts/DataCacheContext';
 
-// Component to prevent admin from accessing public pages
+// Component to prevent admin and hospital from accessing public pages
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('lf_token');
   
   if (token) {
     try {
       const user = JSON.parse(localStorage.getItem('lf_user') || 'null');
-      if (user && user.role === 'admin') {
-        // Redirect admin to their dashboard
-        return <Navigate to="/admin/dashboard" replace />;
+      if (user) {
+        if (user.role === 'admin') {
+          // Redirect admin to their dashboard
+          return <Navigate to="/admin/dashboard" replace />;
+        }
+        if (user.role === 'hospital') {
+          // Redirect hospital to their dashboard
+          return <Navigate to="/hospital/dashboard" replace />;
+        }
+        // Users (donors) can access public pages
       }
     } catch {
       // If parsing fails, continue to render the public page
@@ -95,8 +103,9 @@ function Layout({ children }: { children: React.ReactNode }) {
 export function App() {
   return (
     <ErrorBoundary>
-      <Router>
-        <Layout>
+      <DataCacheProvider>
+        <Router>
+          <Layout>
           <Routes>
           {/* Public Routes */}
           <Route path="/" element={<PublicRoute><HomePage /></PublicRoute>} />
@@ -145,6 +154,7 @@ export function App() {
         </Routes>
       </Layout>
     </Router>
+    </DataCacheProvider>
     </ErrorBoundary>
   );
 }

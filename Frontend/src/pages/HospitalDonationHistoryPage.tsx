@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge';
 import { Select } from '../components/ui/Select';
 import { Modal } from '../components/ui/Modal';
+import { useDataCache } from '../contexts/DataCacheContext';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -51,6 +52,7 @@ export function HospitalDonationHistoryPage() {
   const [viewMode, setViewMode] = useState<'timeline' | 'camps' | 'donors'>('timeline');
   const [selectedDonor, setSelectedDonor] = useState<DonorDetails | null>(null);
   const [showDonorModal, setShowDonorModal] = useState(false);
+  const { getCache, setCache } = useDataCache();
 
   const me = (() => { try { return JSON.parse(localStorage.getItem('lf_user') || 'null'); } catch { return null; } })();
 
@@ -59,6 +61,14 @@ export function HospitalDonationHistoryPage() {
   }, []);
 
   const fetchDonationHistory = async () => {
+    // Check cache first
+    const cached = getCache('hospital_donation_history');
+    if (cached) {
+      setDonations(cached);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const token = localStorage.getItem('lf_token');
@@ -74,6 +84,7 @@ export function HospitalDonationHistoryPage() {
       if (response.ok) {
         const data = await response.json();
         setDonations(data);
+        setCache('hospital_donation_history', data); // Cache the data
       }
     } catch (err) {
       console.error('Failed to fetch donation history:', err);
@@ -154,8 +165,16 @@ export function HospitalDonationHistoryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-gray-50">
+        <Sidebar role="hospital" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main className="flex-1 min-w-0 lg:ml-64">
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-gray-600">Loading donation records...</p>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }

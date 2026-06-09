@@ -504,9 +504,9 @@ export function Sidebar({
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-primary/5 to-primary/10">
           {!isCollapsed && (
             <Link
-              to={role === 'admin' ? '/admin/dashboard' : role === 'hospital' ? '/hospital/dashboard' : role === 'user' ? '/dashboard' : '/'}
+              to={role === 'user' ? '/' : role === 'hospital' ? '/hospital/dashboard' : '/admin/dashboard'}
               className="flex items-center gap-2 hover:opacity-80 transition-opacity group"
-              title={role === 'admin' ? 'Return to Dashboard' : 'Return to Home'}
+              title={role === 'user' ? 'Return to Home' : 'Return to Dashboard'}
             >
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
                 <HeartPulseIcon className="w-6 h-6 text-white" />
@@ -516,16 +516,16 @@ export function Sidebar({
                   Life<span className="text-primary">Flow</span>
                 </span>
                 <span className="text-xs text-gray-500">
-                  {role === 'admin' ? 'Return to Dashboard' : 'Return to Home'}
+                  {role === 'user' ? 'Return to Home' : 'Return to Dashboard'}
                 </span>
               </div>
             </Link>
           )}
           {isCollapsed && (
             <Link
-              to={role === 'admin' ? '/admin/dashboard' : role === 'hospital' ? '/hospital/dashboard' : role === 'user' ? '/dashboard' : '/'}
+              to={role === 'user' ? '/' : role === 'hospital' ? '/hospital/dashboard' : '/admin/dashboard'}
               className="w-full flex justify-center group"
-              title={role === 'admin' ? 'Return to Dashboard' : 'Return to Home'}
+              title={role === 'user' ? 'Return to Home' : 'Return to Dashboard'}
             >
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
                 <HeartPulseIcon className="w-6 h-6 text-white" />

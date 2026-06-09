@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Select } from '../components/ui/Select';
+import { useDataCache } from '../contexts/DataCacheContext';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -94,6 +95,7 @@ function StatsCard({ title, value, subtitle, icon, color }: { title: string; val
 export function DonationHistoryPage() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { getCache, setCache } = useDataCache();
 
   const me = (() => { try { return JSON.parse(localStorage.getItem('lf_user') || 'null'); } catch { return null; } })();
   const userRole = me?.role || 'user';
@@ -144,6 +146,17 @@ export function DonationHistoryPage() {
   // Fetch donation history
   useEffect(() => {
     const fetchDonationHistory = async () => {
+      // Check cache first
+      const cached = getCache('user_donation_history');
+      if (cached) {
+        const sortedDonations = cached.sort((a: DonationRecord, b: DonationRecord) => 
+          new Date(b.donationDate).getTime() - new Date(a.donationDate).getTime()
+        );
+        setDonations(sortedDonations);
+        setLoading(false);
+        return;
+      }
+
       const token = localStorage.getItem('lf_token');
       if (!token) {
         setLoading(false);
@@ -165,6 +178,7 @@ export function DonationHistoryPage() {
             new Date(b.donationDate).getTime() - new Date(a.donationDate).getTime()
           );
           setDonations(sortedDonations);
+          setCache('user_donation_history', sortedDonations); // Cache the data
         }
       } catch (err) {
         console.error('Failed to fetch donation history:', err);
@@ -174,7 +188,7 @@ export function DonationHistoryPage() {
     };
 
     fetchDonationHistory();
-  }, []);
+  }, [getCache, setCache]);
 
   // Calculate statistics
   const totalDonations = donations.length;
