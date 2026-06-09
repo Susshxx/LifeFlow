@@ -149,8 +149,8 @@ export function Navbar() {
     }
   };
 
-  // Hide navbar links for hospitals - they should only access their dashboard
-  const navLinks = currentUser?.role === 'hospital' ? [] : [
+  // Hide navbar links for hospitals and admins - they should only access their dashboards
+  const navLinks = (currentUser?.role === 'hospital' || currentUser?.role === 'admin') ? [] : [
     { href: '/',        label: 'Home'       },
     { href: '/search',  label: 'Find Blood' },
     { href: '/contact', label: 'Contact'    },
@@ -199,8 +199,8 @@ export function Navbar() {
 
             {/* Desktop right */}
             <div className="hidden md:flex items-center gap-3">
-              {/* Hide search and donate buttons for hospitals */}
-              {currentUser?.role !== 'hospital' && (
+              {/* Hide search and donate buttons for hospitals and admins */}
+              {currentUser?.role !== 'hospital' && currentUser?.role !== 'admin' && (
                 <>
                   <Link to="/search">
                     <Button variant="ghost" size="sm" leftIcon={<SearchIcon className="w-4 h-4" />}>Search</Button>
@@ -330,7 +330,7 @@ export function Navbar() {
                       {link.label}
                     </Link>
                   ))}
-                  {currentUser?.role !== 'hospital' && (
+                  {currentUser?.role !== 'hospital' && currentUser?.role !== 'admin' && (
                     <Link to="/donate" onClick={() => setIsMobileMenuOpen(false)}
                       className="flex items-center gap-2 px-4 py-3 rounded-lg text-base font-semibold text-red-600 hover:bg-red-50">
                       <HeartIcon className="w-4 h-4 fill-current" /> Donate

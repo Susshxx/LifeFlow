@@ -1549,32 +1549,74 @@ export function BloodCampsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <Select
                     label=""
-                    options={[
-                      { value: '', label: 'Month' },
-                      { value: 'January', label: 'January' },
-                      { value: 'February', label: 'February' },
-                      { value: 'March', label: 'March' },
-                      { value: 'April', label: 'April' },
-                      { value: 'May', label: 'May' },
-                      { value: 'June', label: 'June' },
-                      { value: 'July', label: 'July' },
-                      { value: 'August', label: 'August' },
-                      { value: 'September', label: 'September' },
-                      { value: 'October', label: 'October' },
-                      { value: 'November', label: 'November' },
-                      { value: 'December', label: 'December' },
-                    ]}
+                    options={(() => {
+                      const currentYear = new Date().getFullYear();
+                      const currentMonth = new Date().getMonth(); // 0-indexed
+                      const selectedYear = registerFormData.lastDonationYear ? parseInt(registerFormData.lastDonationYear) : currentYear;
+                      
+                      const months = [
+                        { value: '', label: 'Month' },
+                        { value: '1', label: 'January' },
+                        { value: '2', label: 'February' },
+                        { value: '3', label: 'March' },
+                        { value: '4', label: 'April' },
+                        { value: '5', label: 'May' },
+                        { value: '6', label: 'June' },
+                        { value: '7', label: 'July' },
+                        { value: '8', label: 'August' },
+                        { value: '9', label: 'September' },
+                        { value: '10', label: 'October' },
+                        { value: '11', label: 'November' },
+                        { value: '12', label: 'December' },
+                      ];
+                      
+                      // If current year is selected, filter out future months
+                      if (selectedYear === currentYear) {
+                        return months.filter((m, i) => i === 0 || parseInt(m.value) <= currentMonth + 1);
+                      }
+                      
+                      return months;
+                    })()}
                     value={registerFormData.lastDonationMonth}
-                    onChange={(e) => setRegisterFormData(prev => ({ ...prev, lastDonationMonth: e.target.value }))}
+                    onChange={(e) => {
+                      const selectedMonth = parseInt(e.target.value);
+                      const currentYear = new Date().getFullYear();
+                      const currentMonth = new Date().getMonth() + 1; // 1-indexed
+                      const selectedYear = registerFormData.lastDonationYear ? parseInt(registerFormData.lastDonationYear) : currentYear;
+                      
+                      // Check if selected date is in the future
+                      if (selectedYear === currentYear && selectedMonth > currentMonth) {
+                        alert('Cannot select a future date for last donation');
+                        return;
+                      }
+                      
+                      setRegisterFormData(prev => ({ ...prev, lastDonationMonth: e.target.value }));
+                    }}
                   />
-                  <Input
+                  <Select
                     label=""
-                    type="number"
-                    placeholder="Year"
+                    options={[
+                      { value: '', label: 'Year' },
+                      ...Array.from({ length: 10 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        return { value: String(year), label: String(year) };
+                      })
+                    ]}
                     value={registerFormData.lastDonationYear}
-                    onChange={(e) => setRegisterFormData(prev => ({ ...prev, lastDonationYear: e.target.value }))}
-                    min="1950"
-                    max={new Date().getFullYear()}
+                    onChange={(e) => {
+                      const currentYear = new Date().getFullYear();
+                      const selectedYear = parseInt(e.target.value);
+                      const currentMonth = new Date().getMonth() + 1; // 1-indexed
+                      const selectedMonth = parseInt(registerFormData.lastDonationMonth);
+                      
+                      // If switching to current year and selected month is in the future, reset month
+                      if (selectedYear === currentYear && selectedMonth > currentMonth) {
+                        setRegisterFormData(prev => ({ ...prev, lastDonationYear: e.target.value, lastDonationMonth: '' }));
+                        alert('Month reset because it was in the future');
+                      } else {
+                        setRegisterFormData(prev => ({ ...prev, lastDonationYear: e.target.value }));
+                      }
+                    }}
                   />
                 </div>
               </div>

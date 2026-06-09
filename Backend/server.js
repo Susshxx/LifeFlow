@@ -5,18 +5,7 @@ const compression = require("compression");
 require("dotenv").config();
 
 const app = express();
-
-// ─────────────────────────────────────────────────────────────
-// CONFIG
-// ─────────────────────────────────────────────────────────────
-
 const PORT = process.env.PORT || 5000;
-
-// ─────────────────────────────────────────────────────────────
-// MIDDLEWARE
-// ─────────────────────────────────────────────────────────────
-
-// Enable gzip compression
 app.use(compression());
 
 // CORS
@@ -43,13 +32,9 @@ app.use(cors({
   credentials: true,
 }));
 
-// Body parser
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// ─────────────────────────────────────────────────────────────
-// MONGODB CONNECTION
-// ─────────────────────────────────────────────────────────────
 
 const connectDB = async () => {
   try {
@@ -110,6 +95,7 @@ const contactRoutes = require("./routes/contactRoutes");
 const bloodInventoryRoutes = require("./routes/bloodInventoryRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 
+
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/donation", donationRoutes);
@@ -125,6 +111,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/blood-inventory", bloodInventoryRoutes);
 app.use("/api/notifications", notificationRoutes);
+
 
 // ─────────────────────────────────────────────────────────────
 // HEALTH CHECK

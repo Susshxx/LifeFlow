@@ -62,6 +62,33 @@ router.post('/:campId', protect, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // ── Check 3-month donation eligibility ────────────────────────────────────
+    const BloodDonationHistory = require('../models/BloodDonationHistory');
+    const latestDonation = await BloodDonationHistory.findOne({ 
+      donorId: req.user.id 
+    }).sort({ donationDate: -1 });
+
+    if (latestDonation) {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      
+      if (new Date(latestDonation.donationDate) > threeMonthsAgo) {
+        const daysSinceLastDonation = Math.floor(
+          (new Date().getTime() - new Date(latestDonation.donationDate).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const daysUntilEligible = 90 - daysSinceLastDonation;
+        const nextEligibleDate = new Date(latestDonation.donationDate);
+        nextEligibleDate.setDate(nextEligibleDate.getDate() + 90);
+        
+        return res.status(400).json({ 
+          error: `You must wait 3 months (90 days) between donations. You can donate again on ${nextEligibleDate.toLocaleDateString()}.`,
+          nextEligibleDate: nextEligibleDate.toISOString(),
+          daysSinceLastDonation,
+          daysUntilEligible
+        });
+      }
+    }
+
     const { fullName, email, phone, age, weight, lastDonationMonth, lastDonationYear } = req.body;
 
     // Add donor to camp

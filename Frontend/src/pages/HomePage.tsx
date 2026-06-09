@@ -7,6 +7,7 @@ import { EmergencyBanner } from '../components/features/EmergencyBanner';
 import { CampCard } from '../components/features/CampCard';
 import { TestimonialCard } from '../components/features/TestimonialCard';
 import { MapView } from '../components/features/MapView';
+import { useRoleRedirect } from '../hooks/useRoleRedirect';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const stats = [{
@@ -80,28 +81,14 @@ const dummyCamps = [{
 }];
 
 export function HomePage() {
+  useRoleRedirect(); // Redirect admins and hospitals to their dashboards
+  
   const navigate = useNavigate();
   const [camps, setCamps] = useState<any[]>([]);
   const [loadingCamps, setLoadingCamps] = useState(true);
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
-
-  // Redirect hospitals to their dashboard - they shouldn't access home page
-  useEffect(() => {
-    try {
-      const userStr = localStorage.getItem('lf_user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        if (user.role === 'hospital') {
-          navigate('/hospital/dashboard', { replace: true });
-          return;
-        }
-      }
-    } catch (error) {
-      console.error('Error checking user role:', error);
-    }
-  }, [navigate]);
 
   // Fetch upcoming blood camps - show real data only for logged-in users
   useEffect(() => {

@@ -102,6 +102,45 @@ export function DonationHistoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterYear, setFilterYear] = useState('');
 
+  // Export donation history as CSV
+  const handleExportHistory = () => {
+    if (donations.length === 0) {
+      alert('No donation history to export');
+      return;
+    }
+
+    // Prepare CSV data
+    const headers = ['Date', 'Hospital', 'Camp', 'Blood Group', 'Location', 'Tokens Awarded', 'Notes'];
+    const rows = donations.map(d => [
+      new Date(d.donationDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+      d.hospitalName,
+      d.campTitle,
+      d.bloodGroup,
+      d.location || 'N/A',
+      d.tokensAwarded.toString(),
+      d.notes || ''
+    ]);
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `donation-history-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Fetch donation history
   useEffect(() => {
     const fetchDonationHistory = async () => {
@@ -121,7 +160,11 @@ export function DonationHistoryPage() {
 
         if (response.ok) {
           const data = await response.json();
-          setDonations(data);
+          // Sort donations by date (newest first)
+          const sortedDonations = data.sort((a: DonationRecord, b: DonationRecord) => 
+            new Date(b.donationDate).getTime() - new Date(a.donationDate).getTime()
+          );
+          setDonations(sortedDonations);
         }
       } catch (err) {
         console.error('Failed to fetch donation history:', err);
@@ -156,8 +199,15 @@ export function DonationHistoryPage() {
 
   // Calculate days since last donation
   const daysSinceLastDonation = lastDonation 
-    ? Math.floor((new Date().getTime() - new Date(lastDonation).getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.floor((Date.now() - new Date(lastDonation).getTime()) / (1000 * 60 * 60 * 24))
     : null;
+  
+  // Format last donation display
+  const lastDonationDisplay = daysSinceLastDonation !== null 
+    ? daysSinceLastDonation === 0 
+      ? 'Today' 
+      : `${daysSinceLastDonation} Day${daysSinceLastDonation === 1 ? '' : 's'}`
+    : 'Never';
 
   if (loading) {
     return (
@@ -192,7 +242,7 @@ export function DonationHistoryPage() {
             <Button variant="outline" onClick={() => navigate(userRole === 'hospital' ? '/hospital/dashboard' : '/dashboard')}>
               Back to Dashboard
             </Button>
-            <Button variant="primary" leftIcon={<DownloadIcon className="w-4 h-4" />}>
+            <Button variant="primary" leftIcon={<DownloadIcon className="w-4 h-4" />} onClick={handleExportHistory}>
               Export History
             </Button>
           </div>
@@ -223,7 +273,7 @@ export function DonationHistoryPage() {
           />
           <StatsCard
             title="Last Donation"
-            value={daysSinceLastDonation !== null ? `${daysSinceLastDonation} Days` : 'Never'}
+            value={lastDonationDisplay}
             subtitle={lastDonation ? new Date(lastDonation).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No donations yet'}
             icon={<CalendarIcon className="w-6 h-6 text-white" />}
             color="bg-warning"

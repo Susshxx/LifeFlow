@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HeartIcon, ShieldCheckIcon, ZapIcon, UsersIcon, ArrowRightIcon, CheckCircleIcon, Loader2Icon } from 'lucide-react';
+import { useRoleRedirect } from '../hooks/useRoleRedirect';
 
 const PRESET_AMOUNTS = [500, 1000, 2500, 5000];
 
@@ -17,6 +18,8 @@ const TRUST_BADGES = [
 ];
 
 export function DonatePage() {
+  useRoleRedirect(); // Redirect admins and hospitals to their dashboards
+  
   const [selectedAmount, setSelectedAmount] = useState<number | null>(1000);
   const [customAmount, setCustomAmount] = useState('');
   const [donorName, setDonorName] = useState('');

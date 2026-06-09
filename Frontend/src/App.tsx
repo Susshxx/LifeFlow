@@ -33,10 +33,30 @@ import { ConnectionRequestsPage } from './pages/ConnectionRequestsPage';
 import { HospitalMessagesPage } from './pages/HospitalMessagesPage';
 import { CampApprovalsPage } from './pages/CampApprovalsPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { Navigate } from 'react-router-dom';
 import 'leaflet/dist/leaflet.css';
 import { HospitalDonationHistoryPage } from './pages/HospitalDonationHistoryPage';
 import { AdminSettingsPage } from './pages/AdminSettingsPage';
 import { ReportsAnalyticsPage } from './pages/ReportsAnalyticsPage';
+
+// Component to prevent admin from accessing public pages
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const token = localStorage.getItem('lf_token');
+  
+  if (token) {
+    try {
+      const user = JSON.parse(localStorage.getItem('lf_user') || 'null');
+      if (user && user.role === 'admin') {
+        // Redirect admin to their dashboard
+        return <Navigate to="/admin/dashboard" replace />;
+      }
+    } catch {
+      // If parsing fails, continue to render the public page
+    }
+  }
+  
+  return <>{children}</>;
+}
 
 // Pages that should NOT show the Navbar/Footer
 const AUTH_PAGES = [
@@ -79,18 +99,18 @@ export function App() {
         <Layout>
           <Routes>
           {/* Public Routes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/search" element={<SearchPage />} />
+          <Route path="/" element={<PublicRoute><HomePage /></PublicRoute>} />
+          <Route path="/about" element={<PublicRoute><AboutPage /></PublicRoute>} />
+          <Route path="/search" element={<PublicRoute><SearchPage /></PublicRoute>} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/faq" element={<FAQPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/contact" element={<PublicRoute><ContactPage /></PublicRoute>} />
+          <Route path="/faq" element={<PublicRoute><FAQPage /></PublicRoute>} />
+          <Route path="/privacy" element={<PublicRoute><PrivacyPage /></PublicRoute>} />
+          <Route path="/terms" element={<PublicRoute><TermsPage /></PublicRoute>} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
-          <Route path="/donate" element={<DonatePage />} />
+          <Route path="/donate" element={<PublicRoute><DonatePage /></PublicRoute>} />
           <Route path="/donation/success" element={<DonationSuccessPage />} />
           <Route path="/donation/failure" element={<DonationFailurePage />} />
 

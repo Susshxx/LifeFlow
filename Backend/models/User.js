@@ -122,7 +122,7 @@ const userSchema = new mongoose.Schema(
     hospitalRegNumber: { type: String, default: "" },
 
     // Certificate Number - unique identifier from citizenship/document
-    certificateNumber: { type: String, default: "", sparse: true },
+    certificateNumber: { type: String, default: "" },
 
     isVerified:    { type: Boolean, default: false },
     verified:      { type: Boolean, default: false }, // Admin verification status

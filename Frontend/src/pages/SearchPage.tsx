@@ -2156,6 +2156,11 @@ export function SearchPage() {
         const user = JSON.parse(userStr);
         if (user.role === 'hospital') {
           navigate('/hospital/dashboard', { replace: true });
+          return;
+        }
+        if (user.role === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
+          return;
         }
       }
     } catch (error) {

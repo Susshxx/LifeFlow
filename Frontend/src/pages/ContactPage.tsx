@@ -4,11 +4,14 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { ReviewForm } from '../components/features/ReviewForm';
+import { useRoleRedirect } from '../hooks/useRoleRedirect';
 import mascotImg from '../../img.jpeg';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export function ContactPage() {
+  useRoleRedirect(); // Redirect admins and hospitals to their dashboards
+  
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',

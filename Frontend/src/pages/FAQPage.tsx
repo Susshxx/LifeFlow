@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { ChevronDownIcon, ChevronUpIcon, SearchIcon } from 'lucide-react';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import { useRoleRedirect } from '../hooks/useRoleRedirect';
+
 const faqs = [{
   category: 'Donation Basics',
   items: [{
@@ -34,6 +36,8 @@ const faqs = [{
   }]
 }];
 export function FAQPage() {
+  useRoleRedirect(); // Redirect admins and hospitals to their dashboards
+  
   const [openIndex, setOpenIndex] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const toggleAccordion = (id: string) => {

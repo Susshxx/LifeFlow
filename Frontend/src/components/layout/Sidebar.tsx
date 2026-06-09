@@ -501,39 +501,34 @@ export function Sidebar({
         `}
       >
         {/* Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0">
+        <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100 flex-shrink-0 bg-gradient-to-r from-primary/5 to-primary/10">
           {!isCollapsed && (
             <Link
-              to={
-                role === 'user'
-                  ? '/dashboard'
-                  : role === 'hospital'
-                  ? '/hospital/dashboard'
-                  : '/admin/dashboard'
-              }
-              className="flex items-center gap-2"
+              to={role === 'admin' ? '/admin/dashboard' : role === 'hospital' ? '/hospital/dashboard' : role === 'user' ? '/dashboard' : '/'}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity group"
+              title={role === 'admin' ? 'Return to Dashboard' : 'Return to Home'}
             >
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <HeartPulseIcon className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
+                <HeartPulseIcon className="w-6 h-6 text-white" />
               </div>
-              <span className="font-heading font-bold text-lg text-secondary">
-                Life<span className="text-primary">Flow</span>
-              </span>
+              <div>
+                <span className="font-heading font-bold text-lg text-secondary block leading-tight">
+                  Life<span className="text-primary">Flow</span>
+                </span>
+                <span className="text-xs text-gray-500">
+                  {role === 'admin' ? 'Return to Dashboard' : 'Return to Home'}
+                </span>
+              </div>
             </Link>
           )}
           {isCollapsed && (
             <Link
-              to={
-                role === 'user'
-                  ? '/dashboard'
-                  : role === 'hospital'
-                  ? '/hospital/dashboard'
-                  : '/admin/dashboard'
-              }
-              className="w-full flex justify-center"
+              to={role === 'admin' ? '/admin/dashboard' : role === 'hospital' ? '/hospital/dashboard' : role === 'user' ? '/dashboard' : '/'}
+              className="w-full flex justify-center group"
+              title={role === 'admin' ? 'Return to Dashboard' : 'Return to Home'}
             >
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                <HeartPulseIcon className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow">
+                <HeartPulseIcon className="w-6 h-6 text-white" />
               </div>
             </Link>
           )}

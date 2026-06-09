@@ -1,6 +1,8 @@
 import React from 'react';
 import { HeartPulseIcon, TargetIcon, EyeIcon, ShieldCheckIcon, UsersIcon, BuildingIcon, MapPinIcon, TrophyIcon, CheckCircleIcon } from 'lucide-react';
 import { Card } from '../components/ui/Card';
+import { useRoleRedirect } from '../hooks/useRoleRedirect';
+
 const stats = [{
   value: '50,000+',
   label: 'Units Collected',
@@ -74,6 +76,8 @@ const milestones = [{
   description: 'Launched 24/7 emergency response system'
 }];
 export function AboutPage() {
+  useRoleRedirect(); // Redirect admins and hospitals to their dashboards
+  
   return <div className="min-h-screen bg-white">
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-secondary to-secondary-dark text-white py-20 px-4">
