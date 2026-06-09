@@ -1451,42 +1451,59 @@ L.Icon.Default.mergeOptions({
 
 
 // ── Reverse geocode helper (lazy, single call) ────────────────────────────────
-// Returns a short "Neighbourhood, City" string from coordinates.
-// Only called when a dialog opens — never in bulk.
 // async function reverseGeocode(lat: number, lng: number): Promise<string> {
 //   try {
 //     const res = await fetch(`${API}/api/geocode/reverse?lat=${lat}&lon=${lng}`);
 //     if (!res.ok) return '';
 //     const data = await res.json();
-//     // Handle the graceful error fallback from the backend
 //     if (data._geocodeError) return '';
-//     const a = data.address || {};
-//     const parts: string[] = [
-//       a.neighbourhood || a.suburb || a.quarter || a.village || a.hamlet || a.road,
-//       a.city || a.town || a.municipality || a.county,
-//     ].filter(Boolean) as string[];
-//     if (parts.length) return parts.join(', ');
+//     // Backend pre-builds the Nepali label — use it directly
+//     if (data._label && data._label.trim().length > 0) return data._label;
+//     // Fallback: parse display_name which is already in Nepali when backend sends ne lang
 //     return data.display_name?.split(',').slice(0, 2).join(',').trim() || '';
 //   } catch {
 //     return '';
 //   }
 // }
 
-
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
-    const res = await fetch(`${API}/api/geocode/reverse?lat=${lat}&lon=${lng}`);
-    if (!res.ok) return '';
+    const url = `${API}/api/geocode/reverse?lat=${lat}&lon=${lng}`;
+
+    console.log("Calling:", url);
+
+    const res = await fetch(url);
+
+    console.log("Status:", res.status);
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Geocode API error:", res.status, text);
+      return '';
+    }
+
     const data = await res.json();
-    if (data._geocodeError) return '';
-    // Backend pre-builds the Nepali label — use it directly
-    if (data._label && data._label.trim().length > 0) return data._label;
-    // Fallback: parse display_name which is already in Nepali when backend sends ne lang
+
+    console.log("Geocode response:", data);
+
+    if (data._geocodeError) {
+      console.error("Backend geocode error:", data);
+      return '';
+    }
+
+    if (data._label?.trim()) {
+      return data._label;
+    }
+
     return data.display_name?.split(',').slice(0, 2).join(',').trim() || '';
-  } catch {
+
+  } catch (err) {
+    console.error("Reverse geocode fetch failed:", err);
     return '';
   }
 }
+
+
 // ── Smart label for list cards (no API call needed) ───────────────────────────
 // Shows the most useful short string available without hitting any API.
 function smartLocationLabel(
